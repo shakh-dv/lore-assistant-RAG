@@ -1,0 +1,17 @@
+[project]
+name = "vector"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi==0.111.0",
+    "google-genai>=2.14.0",
+    "greenlet>=3.5.3",
+    "pgvector==0.2.5",
+    "psycopg[binary]==3.1.19",
+    "pydantic-settings==2.2.1",
+    "python-dotenv==1.0.1",
+    "sqlalchemy==2.0.30",
+    "uvicorn[standard]==0.30.1",
+]

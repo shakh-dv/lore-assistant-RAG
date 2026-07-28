@@ -1,0 +1,1082 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="color-scheme" content="dark" />
+<title>Lore Assistant — Архив знаний</title>
+
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css" />
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/bold/style.css" />
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css" />
+
+<style>
+  :root { color-scheme: dark; }
+
+  html, body { height: 100%; }
+  body {
+    background: #020617;
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Inter, Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* ── Тонкий кастомный скроллбар ───────────────────────────── */
+  .scroll-thin { scrollbar-width: thin; scrollbar-color: rgba(148,163,184,.22) transparent; }
+  .scroll-thin::-webkit-scrollbar { width: 7px; height: 7px; }
+  .scroll-thin::-webkit-scrollbar-track { background: transparent; }
+  .scroll-thin::-webkit-scrollbar-thumb {
+    background: rgba(148,163,184,.20);
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+  .scroll-thin::-webkit-scrollbar-thumb:hover { background: rgba(168,85,247,.55); background-clip: padding-box; }
+
+  /* ── Появление сообщений ──────────────────────────────────── */
+  @keyframes msgIn { from { opacity: 0; transform: translateY(14px) scale(.985); } to { opacity: 1; transform: none; } }
+  .anim-msg { animation: msgIn .5s cubic-bezier(.21,1,.32,1) both; }
+
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+  .anim-up { animation: fadeUp .6s cubic-bezier(.21,1,.32,1) both; }
+
+  /* ── Фоновые «туманности» ─────────────────────────────────── */
+  @keyframes drift {
+    0%   { transform: translate3d(0,0,0) scale(1); }
+    33%  { transform: translate3d(4%, -6%, 0) scale(1.09); }
+    66%  { transform: translate3d(-5%, 4%, 0) scale(.94); }
+    100% { transform: translate3d(0,0,0) scale(1); }
+  }
+  .blob { animation: drift 26s ease-in-out infinite; will-change: transform; }
+
+  /* ── Индикатор набора ─────────────────────────────────────── */
+  @keyframes dot { 0%,60%,100% { transform: translateY(0); opacity:.4 } 30% { transform: translateY(-5px); opacity:1 } }
+  .dot { animation: dot 1.25s ease-in-out infinite; }
+
+  /* ── Курсор потоковой печати ──────────────────────────────── */
+  @keyframes caret { 0%,49% { opacity: 1 } 50%,100% { opacity: 0 } }
+  .is-streaming .md > :last-child:not(ul):not(ol)::after,
+  .is-streaming .md > ul:last-child > li:last-child::after,
+  .is-streaming .md > ol:last-child > li:last-child::after {
+    content: ''; display: inline-block;
+    width: .48rem; height: 1.02em;
+    margin-left: .18rem; vertical-align: -.16em;
+    border-radius: 2px;
+    background: linear-gradient(180deg, #22d3ee, #a855f7);
+    animation: caret 1.05s steps(2, start) infinite;
+  }
+
+  /* ── Типографика ответа ───────────────────────────────────── */
+  .md > * + * { margin-top: .78rem; }
+  .md p { line-height: 1.72; }
+  .md strong { color: #fff; font-weight: 600; }
+  .md em { color: #e2e8f0; }
+  .md ul, .md ol { padding-left: 1.15rem; display: flex; flex-direction: column; gap: .38rem; }
+  .md ul { list-style: none; }
+  .md ul > li { position: relative; }
+  .md ul > li::before {
+    content: ''; position: absolute; left: -.92rem; top: .62em;
+    width: 5px; height: 5px; border-radius: 999px;
+    background: linear-gradient(135deg, #22d3ee, #a855f7);
+  }
+  .md ol { list-style: decimal; }
+  .md ol > li::marker { color: #67e8f9; font-variant-numeric: tabular-nums; }
+  .md code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: .86em; padding: .14em .4em; border-radius: .4rem;
+    background: rgba(148,163,184,.14); border: 1px solid rgba(255,255,255,.07); color: #a5f3fc;
+  }
+  .md pre {
+    overflow-x: auto; padding: .9rem 1rem; border-radius: .9rem;
+    background: rgba(2,6,23,.75); border: 1px solid rgba(255,255,255,.08);
+  }
+  .md pre code { background: none; border: 0; padding: 0; color: #cbd5e1; font-size: .84em; line-height: 1.6; }
+  .md a { color: #67e8f9; text-decoration: underline; text-underline-offset: 3px; }
+  .md a:hover { color: #a855f7; }
+
+  /* ── Бегущий луч по рамке ответа ──────────────────────────────
+     @property нужен, чтобы браузер умел анимировать угол градиента.
+     Где его нет (старые браузеры) — кольцо просто не вращается, но остаётся. */
+  @property --beam-angle {
+    syntax: '<angle>';
+    initial-value: 0deg;
+    inherits: false;
+  }
+  @keyframes beamSpin { to { --beam-angle: 360deg; } }
+
+  /* Маска вырезает середину, поэтому градиент виден только полоской по краю */
+  .beam::before, .beam::after {
+    content: ''; position: absolute; inset: 0;
+    border-radius: inherit; pointer-events: none;
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+            mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+            mask-composite: exclude;
+    animation: beamSpin 2.6s linear infinite;
+    transition: opacity 1.6s ease-out, filter 1.6s ease-out;
+  }
+  /* Чёткое кольцо */
+  .beam::before {
+    padding: 1.5px;
+    background: conic-gradient(from var(--beam-angle),
+      transparent 0deg, transparent 205deg,
+      #22d3ee 268deg, #a855f7 322deg, transparent 360deg);
+  }
+  /* Мягкое свечение вокруг него */
+  .beam::after {
+    padding: 5px; opacity: .5; filter: blur(7px);
+    background: conic-gradient(from var(--beam-angle),
+      transparent 0deg, transparent 210deg,
+      #22d3ee 272deg, #a855f7 325deg, transparent 360deg);
+  }
+  /* Ответ дописан: луч успокаивается, но продолжает светиться всё время BEAM_HOLD_MS */
+  .beam.beam-idle::before, .beam.beam-idle::after { animation-duration: 6s; }
+  /* И только в последние секунды плавно гаснет */
+  .beam.beam-fade::before, .beam.beam-fade::after {
+    opacity: 0;
+    filter: blur(12px);
+  }
+
+  .no-tap-highlight { -webkit-tap-highlight-color: transparent; }
+
+  /* На тач-устройствах :hover «залипает» после тапа — подсказку прячем,
+     там вместо неё показывается #modeHint строкой (он скрыт на десктопе). */
+  @media (hover: none) { .tip { display: none !important; } }
+</style>
+</head>
+
+<body class="text-slate-200 antialiased overflow-hidden">
+
+<!-- ══ Фон: космический градиент + туманности ══════════════════ -->
+<div class="fixed inset-0 -z-10 bg-slate-950" aria-hidden="true">
+  <div class="absolute inset-0 bg-[radial-gradient(120%_120%_at_50%_-10%,#0f172a_0%,#020617_55%,#000_100%)]"></div>
+  <div class="blob absolute -top-40 -left-32 h-[36rem] w-[36rem] rounded-full bg-purple-600/20 blur-[130px]"></div>
+  <div class="blob absolute top-1/3 -right-40 h-[34rem] w-[34rem] rounded-full bg-cyan-500/15 blur-[130px]" style="animation-delay:-9s"></div>
+  <div class="blob absolute -bottom-52 left-1/3 h-[32rem] w-[32rem] rounded-full bg-blue-600/15 blur-[130px]" style="animation-delay:-17s"></div>
+  <div class="absolute inset-0 opacity-[.18] mix-blend-overlay"
+       style="background-image:radial-gradient(rgba(255,255,255,.35) .5px, transparent .5px); background-size:22px 22px"></div>
+</div>
+
+<div class="flex h-[100dvh] overflow-hidden">
+
+  <!-- ══ Оверлей сайдбара (мобильный) ═════════════════════════ -->
+  <div id="overlay"
+       class="fixed inset-0 z-40 bg-slate-950/70 backdrop-blur-sm opacity-0 pointer-events-none transition-opacity duration-300 md:hidden"></div>
+
+  <!-- ══ САЙДБАР ══════════════════════════════════════════════ -->
+  <aside id="sidebar"
+         class="fixed inset-y-0 left-0 z-50 flex w-[286px] shrink-0 -translate-x-full flex-col
+                border-r border-white/[.06] bg-slate-900/60 backdrop-blur-2xl
+                transition-transform duration-300 ease-[cubic-bezier(.21,1,.32,1)]
+                md:static md:translate-x-0">
+
+    <!-- Логотип -->
+    <div class="flex items-center gap-3 px-5 pb-4 pt-5">
+      <div class="relative grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-cyan-400 to-purple-600 shadow-lg shadow-purple-900/40">
+        <i class="ph-fill ph-scroll text-[20px] text-white"></i>
+        <span class="absolute inset-0 rounded-2xl ring-1 ring-inset ring-white/25"></span>
+      </div>
+      <div class="min-w-0">
+        <p class="truncate bg-gradient-to-r from-white to-slate-400 bg-clip-text text-[15px] font-semibold leading-tight text-transparent">Lore Assistant</p>
+        <p class="truncate text-[13px] text-slate-500">Архив вселенных</p>
+      </div>
+      <button id="closeSidebar"
+              class="no-tap-highlight ml-auto grid h-8 w-8 place-items-center rounded-lg text-slate-400 transition hover:bg-white/5 hover:text-white md:hidden">
+        <i class="ph-bold ph-x text-[15px]"></i>
+      </button>
+    </div>
+
+    <!-- Новый чат -->
+    <div class="px-4">
+      <button id="newChat"
+              class="no-tap-highlight group relative flex w-full items-center justify-center gap-2 overflow-hidden
+                     rounded-2xl border border-white/10 bg-white/[.04] px-4 py-3 text-[13.5px] font-medium text-white
+                     transition-all duration-300 hover:border-white/20 hover:bg-white/[.07] active:scale-[.98]">
+        <span class="absolute inset-0 bg-gradient-to-r from-cyan-500/20 via-purple-500/20 to-cyan-500/20 opacity-0 transition-opacity duration-300 group-hover:opacity-100"></span>
+        <i class="ph-bold ph-plus relative text-[14px] text-cyan-300"></i>
+        <span class="relative">Новый чат</span>
+      </button>
+    </div>
+
+    <!-- Настройки: вселенная + стиль ответа в одной панели.
+         ВАЖНО: никакого overflow-hidden на карточке — обрежет подсказку режима. -->
+    <div class="px-4 pt-4">
+      <p class="mb-2 px-1 text-[12px] font-semibold uppercase tracking-[.14em] text-slate-400">Настройки</p>
+
+      <div class="rounded-2xl border border-white/10 bg-white/[.04] shadow-lg shadow-black/20">
+
+        <!-- Ряд 1: вселенная. Своей рамки нет, границу даёт карточка -->
+        <div class="relative rounded-t-2xl transition-colors hover:bg-white/[.03]">
+          <i class="ph-fill ph-planet pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[15px] text-purple-400"></i>
+          <select id="universe" aria-label="Вселенная"
+                  class="no-tap-highlight w-full appearance-none rounded-t-2xl border-0 bg-transparent py-2.5 pl-9 pr-8
+                         text-[14px] text-slate-200 outline-none transition
+                         focus:ring-2 focus:ring-inset focus:ring-cyan-400/35"></select>
+          <i class="ph-bold ph-caret-down pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-slate-400"></i>
+        </div>
+
+        <!-- Ряд 2: стиль ответа. Класс трека дублирует TRACK_SEG в JS —
+             задан здесь, чтобы не было скачка высоты, пока летит /api/v1/modes -->
+        <div class="relative border-t border-white/[.07] p-2">
+          <div id="modes" class="grid grid-cols-2 gap-1 rounded-xl bg-black/20 p-1"></div>
+        </div>
+      </div>
+
+      <!-- Описание режима — только там, где нет наведения (мобильная шторка) -->
+      <p id="modeHint" class="mt-2 px-1 text-[11px] leading-snug text-slate-300 md:hidden"></p>
+    </div>
+
+    <!-- История -->
+    <div class="mt-6 flex items-baseline gap-2 border-t border-white/[.06] px-5 pb-2 pt-4">
+      <p class="text-[12px] font-semibold text-slate-300">История</p>
+      <span id="chatCount" class="text-[12px] tabular-nums text-slate-400"></span>
+    </div>
+    <nav id="chatList" class="scroll-thin flex-1 space-y-1 overflow-y-auto px-3 pb-4"></nav>
+
+    <!-- Статус подключения -->
+    <div class="border-t border-white/[.06] px-5 py-3.5">
+      <div class="flex items-center gap-2.5">
+        <span id="statusDot" class="relative flex h-2 w-2">
+          <span id="statusPing" class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-70"></span>
+          <span id="statusCore" class="relative inline-flex h-2 w-2 rounded-full bg-emerald-400"></span>
+        </span>
+        <span id="statusText" class="text-[14px] text-slate-400">Подключение…</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ══ ОСНОВНАЯ ОБЛАСТЬ ═════════════════════════════════════ -->
+  <main class="relative flex min-w-0 flex-1 flex-col">
+
+    <!-- Шапка (мобильная) -->
+    <header class="z-20 flex items-center gap-3 border-b border-white/[.06] bg-slate-950/50 px-4 py-3 backdrop-blur-xl md:hidden">
+      <button id="openSidebar"
+              class="no-tap-highlight grid h-9 w-9 place-items-center rounded-xl border border-white/10 bg-white/[.04] text-slate-300 transition active:scale-95">
+        <i class="ph-bold ph-list text-[16px]"></i>
+      </button>
+      <div class="grid h-8 w-8 place-items-center rounded-xl bg-gradient-to-br from-cyan-400 to-purple-600">
+        <i class="ph-fill ph-scroll text-[15px] text-white"></i>
+      </div>
+      <p class="bg-gradient-to-r from-white to-slate-400 bg-clip-text text-[14px] font-semibold text-transparent">Lore Assistant</p>
+    </header>
+
+    <!-- Лента сообщений -->
+    <div id="scroller" class="scroll-thin relative flex-1 overflow-y-auto overscroll-contain">
+      <div class="mx-auto w-full max-w-[800px] px-4 pb-[210px] pt-6 sm:px-6">
+        <div id="messages" class="space-y-6"></div>
+      </div>
+    </div>
+
+    <!-- Кнопка «вниз» -->
+    <button id="toBottom"
+            class="no-tap-highlight pointer-events-none absolute bottom-[168px] left-1/2 z-20 grid h-9 w-9 -translate-x-1/2
+                   translate-y-2 place-items-center rounded-full border border-white/10 bg-slate-800/80 text-slate-300
+                   opacity-0 shadow-xl shadow-black/40 backdrop-blur-xl transition-all duration-300 hover:text-white">
+      <i class="ph-bold ph-arrow-down text-[14px]"></i>
+    </button>
+
+    <!-- ══ ПЛАВАЮЩЕЕ ПОЛЕ ВВОДА ══════════════════════════════ -->
+    <div class="pointer-events-none absolute inset-x-0 bottom-0 z-30">
+      <div class="h-24 bg-gradient-to-t from-slate-950 via-slate-950/85 to-transparent"></div>
+      <div class="bg-slate-950/85 px-4 pb-5 backdrop-blur-sm sm:px-6 sm:pb-6"
+           style="padding-bottom: max(1.25rem, env(safe-area-inset-bottom))">
+        <div class="pointer-events-auto mx-auto w-full max-w-[800px]">
+
+          <div id="inputShell" class="group relative">
+            <!-- Свечение при фокусе -->
+            <div class="pointer-events-none absolute -inset-[3px] rounded-[1.65rem] bg-gradient-to-r from-cyan-400 via-purple-500 to-cyan-400
+                        opacity-0 blur-lg transition-opacity duration-500 group-focus-within:opacity-40"></div>
+
+            <div class="relative flex items-end gap-2 rounded-[1.5rem] border border-white/10 bg-slate-900/80 p-2 pl-4
+                        shadow-2xl shadow-black/50 backdrop-blur-2xl transition-colors duration-300
+                        group-focus-within:border-white/20">
+              <textarea id="input" rows="1" placeholder="Спроси у архива…" autocomplete="off"
+                        class="scroll-thin max-h-[168px] min-h-[26px] flex-1 resize-none self-center bg-transparent py-2.5
+                               text-[15px] leading-relaxed text-slate-100 outline-none placeholder:text-slate-500"></textarea>
+
+              <button id="send" disabled
+                      class="no-tap-highlight relative grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-2xl
+                             transition-all duration-300 disabled:cursor-not-allowed">
+                <span id="sendBg" class="absolute inset-0 bg-white/[.05] transition-opacity duration-300"></span>
+                <span id="sendGlow" class="absolute inset-0 bg-gradient-to-br from-cyan-400 to-purple-600 opacity-0 transition-opacity duration-300"></span>
+                <i id="sendIcon" class="ph-fill ph-paper-plane-tilt relative text-[17px] text-slate-500 transition-colors duration-300"></i>
+              </button>
+            </div>
+          </div>
+
+          <p class="mt-2.5 text-center text-[11px] text-slate-600">
+            Enter — отправить · Shift + Enter — новая строка
+          </p>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════
+   Конфигурация
+   ═══════════════════════════════════════════════════════════════ */
+const API_BASE  = location.protocol === 'file:' ? 'http://localhost:8000' : '';
+const ENDPOINT  = API_BASE + '/api/v1/chat';
+const UNIVERSES_URL = API_BASE + '/api/v1/universes';
+const MODES_URL     = API_BASE + '/api/v1/modes';
+const STORE_KEY = 'lore.chats.v1';
+
+/* Скорость «печати» ответа, символов в секунду. Больше — быстрее.
+   TYPE_CATCHUP: насколько бодро догонять, если модель убежала вперёд.
+   Меньше значение — агрессивнее догон (0 отключил бы ровный ритм). */
+/* Сколько луч светится по рамке ПОСЛЕ того, как ответ дописан. 0 — выключить.
+   Всё это время он горит (только спокойнее), а гаснет за BEAM_FADE_MS до конца.
+   Длительность самого гашения задана в CSS: transition у .beam::before. */
+const BEAM_HOLD_MS = 10000;
+const BEAM_FADE_MS = 1600;
+
+const TYPE_CPS     = 60;
+const TYPE_CATCHUP = 250;
+
+/* Заполняется из /api/v1/universes — списком того, что реально есть в базе. */
+let UNIVERSES = [];
+
+/* Стили ответа приходят из /api/v1/modes. Фронт их не хардкодит:
+   добавил режим в app/domain/answer_modes.py — кнопка появилась сама.
+   Запасной вариант нужен только на случай недоступного сервера. */
+let MODES = [];
+const FALLBACK_MODES = [
+  { id: 'storyteller', name: 'Рассказчик', description: 'Живо и литературно.', icon: 'ph-book-open-text', default: true },
+];
+
+/* ── Стили переключателя режимов ──────────────────────────────────
+   Два режима влезают в строку (по ~112px на половинку), три уже нет:
+   «Рассказчик» обрежется. Поэтому от трёх — откат на вертикальный список.
+   grid-cols-1 отдельно: ровно так выглядит офлайн, где режим всего один. */
+const _SEG_BASE = 'no-tap-highlight group relative flex min-w-0 items-center justify-center gap-1.5 rounded-lg '
+                + 'px-2 py-1.5 text-[12.5px] font-medium transition-all duration-200 '
+                + 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/50';
+const _ROW_BASE = 'no-tap-highlight group relative flex w-full items-center gap-2.5 rounded-lg border '
+                + 'px-2.5 py-2 text-left text-[13px] font-medium transition-all duration-200 '
+                + 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/50';
+
+const TRACK_SEG   = 'grid grid-cols-2 gap-1 rounded-xl bg-black/20 p-1';
+const TRACK_SEG_1 = 'grid grid-cols-1 gap-1 rounded-xl bg-black/20 p-1';
+const TRACK_LIST  = 'grid gap-1';
+
+const SEG_ON  = `${_SEG_BASE} bg-gradient-to-br from-cyan-500/[.18] to-purple-500/[.18] text-white shadow-sm shadow-black/30 ring-1 ring-inset ring-white/15`;
+const SEG_OFF = `${_SEG_BASE} text-slate-400 hover:bg-white/[.06] hover:text-slate-200`;
+const ROW_ON  = `${_ROW_BASE} border-white/10 bg-gradient-to-r from-cyan-500/[.14] to-purple-500/[.14] text-white`;
+const ROW_OFF = `${_ROW_BASE} border-transparent text-slate-400 hover:bg-white/[.05] hover:text-slate-200`;
+
+/* Подсказка якорится к краю, а не по центру: при left-1/2 первая половинка
+   уехала бы за левый край сайдбара. Обе подсказки занимают один прямоугольник. */
+function tipHtml(description, alignRight, offsetPx) {
+  return `<span class="tip pointer-events-none absolute ${alignRight ? 'right-0' : 'left-0'} top-[calc(100%+${offsetPx}px)] z-30
+    w-[228px] rounded-lg border border-white/10 bg-slate-900/95 px-2.5 py-1.5
+    text-left text-[11px] font-normal leading-snug text-slate-300 opacity-0 shadow-xl shadow-black/50
+    backdrop-blur-xl transition-opacity duration-150
+    group-hover:opacity-100 group-focus-visible:opacity-100">${escapeHtml(description)}</span>`;
+}
+
+/* Подсказки для пустого экрана — по коду вселенной.
+   Для вселенной без подсказок карточки просто не показываются. */
+const SUGGESTIONS = {
+  AC: [
+    { icon: 'ph-user-focus',    title: 'Кто такой Альтаир?', q: 'Кто такой Альтаир ибн Ла-Ахад?' },
+    { icon: 'ph-castle-turret', title: 'Храм Соломона',      q: 'Что произошло в храме Соломона?' },
+    { icon: 'ph-sparkle',       title: 'Яблоко Эдема',       q: 'Расскажи про Яблоко Эдема и его силу' },
+    { icon: 'ph-sword',         title: 'Робер де Сабле',     q: 'Кто такой Робер де Сабле?' },
+  ],
+  Human: [
+    { icon: 'ph-user-focus',  title: 'Кто такой Искандер?', q: 'Кто такой Искандер?' },
+    { icon: 'ph-fire',        title: 'Образ жизни',         q: 'Какой образ жизни ведёт Искандер?' },
+    { icon: 'ph-heart-break', title: 'Противоречия',        q: 'В чём заключаются противоречия Искандера?' },
+    { icon: 'ph-star',        title: 'Харизма',             q: 'Расскажи про харизму Искандера' },
+  ],
+};
+
+/* ═══════════════════════════════════════════════════════════════
+   Состояние
+   ═══════════════════════════════════════════════════════════════ */
+const $ = id => document.getElementById(id);
+const el = {
+  sidebar: $('sidebar'), overlay: $('overlay'), chatList: $('chatList'),
+  messages: $('messages'), scroller: $('scroller'), input: $('input'),
+  send: $('send'), sendIcon: $('sendIcon'), sendBg: $('sendBg'), sendGlow: $('sendGlow'),
+  universe: $('universe'), toBottom: $('toBottom'),
+  modes: $('modes'), modeHint: $('modeHint'), chatCount: $('chatCount'),
+  statusCore: $('statusCore'), statusPing: $('statusPing'), statusText: $('statusText'),
+};
+
+let state = { chats: [], activeId: null };
+let controller = null;      // AbortController активного стрима
+let streaming  = false;
+let stick      = true;      // «прилипание» к низу ленты
+
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+const activeChat = () => state.chats.find(c => c.id === state.activeId);
+
+function load() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORE_KEY) || 'null');
+    if (saved && Array.isArray(saved.chats)) { state.chats = saved.chats; state.activeId = saved.activeId; }
+  } catch { /* повреждённое хранилище — начинаем с чистого листа */ }
+  if (!state.chats.length) state.chats.push(blankChat());
+  if (!activeChat()) state.activeId = state.chats[0].id;
+}
+const save = () => localStorage.setItem(STORE_KEY, JSON.stringify(state));
+const defaultMode = () => (MODES.find(m => m.default) || MODES[0])?.id || 'storyteller';
+// У чатов, сохранённых до появления режимов, поля mode нет — подставляем дефолт
+const chatMode = chat => chat.mode || defaultMode();
+const blankChat = () => ({
+  id: uid(), title: 'Новый чат',
+  universe: UNIVERSES[0]?.id || 'AC',
+  mode: defaultMode(),
+  messages: [], ts: Date.now(),
+});
+
+/* ═══════════════════════════════════════════════════════════════
+   Рендер Markdown (экранирование → форматирование)
+   ═══════════════════════════════════════════════════════════════ */
+const escapeHtml = s => s.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
+
+function inlineMd(text) {
+  return escapeHtml(text)
+    .replace(/`([^`\n]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/(^|[\s(«"'])\*([^*\n]+)\*/g, '$1<em>$2</em>')
+    .replace(/(^|[\s(«"'])_([^_\n]+)_/g, '$1<em>$2</em>')
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+}
+
+const BULLET  = /^\s*[-*•]\s+/;
+const NUMBERED = /^\s*\d+[.)]\s+/;
+
+/* Внутри блока строки группируются в «прогоны»: список идёт списком,
+   даже если перед ним на соседней строке стоит вводная фраза. */
+function renderBlocks(chunk) {
+  return chunk.split(/\n{2,}/).map(block => {
+    const lines = block.split('\n').filter(l => l.trim() !== '');
+    if (!lines.length) return '';
+
+    const runs = [];
+    for (const line of lines) {
+      const kind = BULLET.test(line) ? 'ul' : NUMBERED.test(line) ? 'ol' : 'p';
+      const last = runs[runs.length - 1];
+      if (last && last.kind === kind) last.lines.push(line);
+      else runs.push({ kind, lines: [line] });
+    }
+
+    return runs.map(run => {
+      if (run.kind === 'p') return `<p>${run.lines.map(inlineMd).join('<br>')}</p>`;
+      const strip = run.kind === 'ul' ? BULLET : NUMBERED;
+      const items = run.lines.map(l => `<li>${inlineMd(l.replace(strip, ''))}</li>`).join('');
+      return `<${run.kind}>${items}</${run.kind}>`;
+    }).join('');
+  }).join('');
+}
+
+function renderMarkdown(src) {
+  // Нечётные сегменты между ``` — блоки кода
+  return src.split('```').map((part, i) => {
+    if (i % 2 === 0) return renderBlocks(part);
+    const nl = part.indexOf('\n');
+    const body = nl === -1 ? part : part.slice(nl + 1);
+    return `<pre><code>${escapeHtml(body.replace(/\n+$/, ''))}</code></pre>`;
+  }).join('');
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Сайдбар
+   ═══════════════════════════════════════════════════════════════ */
+function renderUniverses() {
+  const current = activeChat().universe;
+
+  // Вселенная из сохранённого чата могла исчезнуть из базы — не теряем её из виду.
+  const list = UNIVERSES.some(u => u.id === current)
+    ? UNIVERSES
+    : [...UNIVERSES, { id: current, name: current, missing: true }];
+
+  el.universe.innerHTML = list.map(u => {
+    const label = u.missing ? `${u.name} (нет в базе)` : u.name;
+    return `<option value="${escapeHtml(u.id)}" class="bg-slate-900">${escapeHtml(label)}</option>`;
+  }).join('');
+  el.universe.value = current;
+}
+
+function renderModes() {
+  const current = chatMode(activeChat());
+  const seg = MODES.length <= 2;   // сегмент только для одного-двух режимов
+
+  el.modes.className = !seg ? TRACK_LIST
+                     : MODES.length === 1 ? TRACK_SEG_1
+                     : TRACK_SEG;
+  el.modes.setAttribute('role', 'group');
+  el.modes.setAttribute('aria-label', 'Стиль ответа');
+  el.modes.innerHTML = '';
+
+  MODES.forEach((m, i) => {
+    const on = m.id === current;
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    // Описание доходит до скринридера независимо от подсказки
+    b.setAttribute('aria-label', `${m.name}. ${m.description}`);
+    b.title = m.description;   // бесплатный второй слой, не основной
+    b.className = seg ? (on ? SEG_ON : SEG_OFF) : (on ? ROW_ON : ROW_OFF);
+
+    const icon = `<i class="ph ${escapeHtml(m.icon)} shrink-0 text-[14px] ${on ? 'text-cyan-300' : 'text-slate-400'}"></i>`;
+    // В сегменте выбор кодируется заливкой — галочка съела бы место из 112px.
+    // В списке места хватает, там она возвращается.
+    b.innerHTML = seg
+      ? `${icon}<span class="truncate">${escapeHtml(m.name)}</span>`
+        + tipHtml(m.description, i === MODES.length - 1 && MODES.length > 1, 10)
+      : `${icon}<span class="min-w-0 flex-1 truncate">${escapeHtml(m.name)}</span>`
+        + (on ? '<i class="ph-bold ph-check ml-auto shrink-0 text-[12px] text-cyan-300"></i>' : '')
+        + tipHtml(m.description, false, 6);
+
+    b.onclick = () => {
+      if (streaming) return;             // на лету не переключаем — ответ уже генерируется
+      activeChat().mode = m.id;
+      save();
+      renderModes();
+    };
+    el.modes.appendChild(b);
+  });
+
+  const info = MODES.find(m => m.id === current);
+  el.modeHint.textContent = info ? info.description : '';   // виден только на мобильном
+}
+
+async function loadModes() {
+  try {
+    const res = await fetch(MODES_URL);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    MODES = Array.isArray(data) && data.length ? data : FALLBACK_MODES;
+  } catch {
+    MODES = FALLBACK_MODES;
+  }
+  // Режим из сохранённого чата мог исчезнуть из бэкенда — откатываем на дефолт
+  const chat = activeChat();
+  if (chat.mode && !MODES.some(m => m.id === chat.mode)) {
+    chat.mode = defaultMode();
+    save();
+  }
+  renderModes();
+}
+
+/* Список вселенных приходит из базы; заодно это проверка связи с сервером. */
+async function loadUniverses() {
+  try {
+    const res = await fetch(UNIVERSES_URL);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    UNIVERSES = Array.isArray(data) ? data : [];
+    setStatus(UNIVERSES.length ? 'online' : 'empty');
+  } catch {
+    // Сервер недоступен — показываем то, что помним из сохранённых чатов.
+    UNIVERSES = [...new Set(state.chats.map(c => c.universe).filter(Boolean))]
+      .map(id => ({ id, name: id }));
+    setStatus('offline');
+  }
+
+  // У пустого чата вселенная ещё ни к чему не привязана — подставим существующую.
+  const chat = activeChat();
+  if (UNIVERSES.length && !chat.messages.length && !UNIVERSES.some(u => u.id === chat.universe)) {
+    chat.universe = UNIVERSES[0].id;
+    save();
+  }
+
+  renderUniverses();
+  if (!chat.messages.length) renderMessages();
+}
+
+function renderSidebar() {
+  el.chatCount.textContent = state.chats.length;
+  el.chatList.innerHTML = '';
+  state.chats.forEach(chat => {
+    const on = chat.id === state.activeId;
+    const item = document.createElement('button');
+    item.className = `no-tap-highlight group relative flex w-full items-center gap-2.5 overflow-hidden rounded-xl
+      px-3 py-2.5 text-left text-[13px] transition-all duration-200 ${
+        on ? 'border border-white/10 bg-white/[.07] text-white'
+           : 'border border-transparent text-slate-400 hover:bg-white/[.04] hover:text-slate-200'}`;
+    item.innerHTML = `
+      ${on ? '<span class="absolute inset-y-2 left-0 w-[2.5px] rounded-r-full bg-gradient-to-b from-cyan-400 to-purple-500"></span>' : ''}
+      <i class="ph${on ? '-fill' : ''} ph-chat-circle-text shrink-0 text-[15px] ${on ? 'text-cyan-300' : 'text-slate-500'}"></i>
+      <span class="min-w-0 flex-1 truncate">${escapeHtml(chat.title)}</span>`;
+    item.onclick = () => selectChat(chat.id);
+
+    const del = document.createElement('span');
+    del.setAttribute('role', 'button');
+    del.title = 'Удалить чат';
+    del.className = `no-tap-highlight grid h-6 w-6 shrink-0 place-items-center rounded-lg text-slate-500
+      opacity-0 transition hover:bg-red-500/15 hover:text-red-400 group-hover:opacity-100`;
+    del.innerHTML = '<i class="ph-bold ph-trash text-[12px]"></i>';
+    del.onclick = e => { e.stopPropagation(); deleteChat(chat.id); };
+    item.appendChild(del);
+
+    el.chatList.appendChild(item);
+  });
+}
+
+function selectChat(id) {
+  if (streaming) stopStream();
+  state.activeId = id;
+  save(); renderSidebar(); renderUniverses(); renderModes(); renderMessages();
+  closeSidebar();
+}
+
+function deleteChat(id) {
+  if (streaming && id === state.activeId) stopStream();
+  state.chats = state.chats.filter(c => c.id !== id);
+  if (!state.chats.length) state.chats.push(blankChat());
+  if (!activeChat()) state.activeId = state.chats[0].id;
+  save(); renderSidebar(); renderUniverses(); renderModes(); renderMessages();
+}
+
+function newChat() {
+  if (streaming) stopStream();
+  const chat = blankChat();
+  chat.universe = el.universe.value || UNIVERSES[0].id;
+  state.chats.unshift(chat);
+  state.activeId = chat.id;
+  save(); renderSidebar(); renderUniverses(); renderModes(); renderMessages();
+  closeSidebar();
+  el.input.focus();
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Сообщения
+   ═══════════════════════════════════════════════════════════════ */
+function emptyState() {
+  const wrap = document.createElement('div');
+  wrap.className = 'anim-up flex flex-col items-center justify-center px-2 pt-10 text-center sm:pt-16';
+  wrap.innerHTML = `
+    <div class="relative mb-6">
+      <div class="absolute inset-0 rounded-[1.75rem] bg-gradient-to-br from-cyan-400 to-purple-600 blur-2xl opacity-40"></div>
+      <div class="relative grid h-16 w-16 place-items-center rounded-[1.75rem] bg-gradient-to-br from-cyan-400 to-purple-600 shadow-2xl shadow-purple-900/50">
+        <i class="ph-fill ph-scroll text-[28px] text-white"></i>
+        <span class="absolute inset-0 rounded-[1.75rem] ring-1 ring-inset ring-white/25"></span>
+      </div>
+    </div>
+    <h1 class="bg-gradient-to-br from-white via-slate-200 to-slate-500 bg-clip-text text-[26px] font-semibold leading-tight text-transparent sm:text-[32px]">
+      Чем могу помочь?
+    </h1>
+    <p class="mt-2.5 max-w-md text-[13.5px] leading-relaxed text-slate-500">
+      Я строгий архивариус базы знаний. Отвечаю только по загруженному лору — без домыслов.
+    </p>
+    <div data-suggestions class="mt-9 grid w-full max-w-[560px] grid-cols-1 gap-2.5 sm:grid-cols-2"></div>`;
+
+  const grid = wrap.querySelector('[data-suggestions]');
+  (SUGGESTIONS[activeChat().universe] || []).forEach((s, i) => {
+    const card = document.createElement('button');
+    card.className = `no-tap-highlight anim-up group relative flex items-center gap-3 overflow-hidden rounded-2xl
+      border border-white/[.07] bg-white/[.03] px-4 py-3.5 text-left backdrop-blur-xl
+      transition-all duration-300 hover:-translate-y-0.5 hover:border-white/15 hover:bg-white/[.06] active:scale-[.98]`;
+    card.style.animationDelay = `${120 + i * 65}ms`;
+    card.innerHTML = `
+      <span class="absolute inset-0 bg-gradient-to-r from-cyan-500/[.09] to-purple-500/[.09] opacity-0 transition-opacity duration-300 group-hover:opacity-100"></span>
+      <span class="relative grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/[.05]">
+        <i class="ph ${s.icon} text-[16px] text-cyan-300 transition-colors duration-300 group-hover:text-purple-300"></i>
+      </span>
+      <span class="relative min-w-0">
+        <span class="block truncate text-[13.5px] font-medium text-slate-200">${escapeHtml(s.title)}</span>
+        <span class="mt-0.5 block truncate text-[11.5px] text-slate-500">${escapeHtml(s.q)}</span>
+      </span>`;
+    card.onclick = () => { el.input.value = s.q; syncInput(); submit(); };
+    grid.appendChild(card);
+  });
+  return wrap;
+}
+
+function userBubble(text, animate) {
+  const row = document.createElement('div');
+  row.className = `flex justify-end${animate ? ' anim-msg' : ''}`;
+  row.innerHTML = `
+    <div class="relative max-w-[86%] rounded-[1.25rem] rounded-br-md border border-white/10
+                bg-gradient-to-br from-blue-500 via-indigo-500 to-purple-600 px-4 py-3
+                text-[14.5px] leading-relaxed text-white shadow-lg shadow-purple-950/40 sm:max-w-[78%]">
+      <span class="absolute inset-0 rounded-[1.25rem] rounded-br-md bg-gradient-to-t from-black/10 to-white/10"></span>
+      <span class="relative whitespace-pre-wrap break-words">${escapeHtml(text)}</span>
+    </div>`;
+  return row;
+}
+
+function botBubble(animate) {
+  const row = document.createElement('div');
+  row.className = `group flex gap-3${animate ? ' anim-msg' : ''}`;
+  row.innerHTML = `
+    <div class="relative mt-0.5 grid h-9 w-9 shrink-0 place-items-center self-start rounded-2xl
+                bg-gradient-to-br from-cyan-400 to-purple-600 shadow-lg shadow-purple-950/40">
+      <i class="ph-fill ph-sparkle text-[15px] text-white"></i>
+      <span class="absolute inset-0 rounded-2xl ring-1 ring-inset ring-white/25"></span>
+    </div>
+    <div class="min-w-0 flex-1">
+      <div class="relative rounded-[1.25rem] rounded-bl-md border border-white/[.08] bg-white/[.04] px-4 py-3.5
+                  text-[14.5px] text-slate-200 shadow-xl shadow-black/25 backdrop-blur-xl">
+        <div class="md break-words"></div>
+      </div>
+      <div class="mt-1.5 flex items-center gap-1 opacity-0 transition-opacity duration-200 group-hover:opacity-100"></div>
+    </div>`;
+  return row;
+}
+
+function typingIndicator() {
+  const d = document.createElement('div');
+  d.className = 'flex items-center gap-1.5 py-1';
+  d.innerHTML = [0, 1, 2].map(i =>
+    `<span class="dot h-1.5 w-1.5 rounded-full bg-gradient-to-br from-cyan-300 to-purple-400" style="animation-delay:${i * 0.16}s"></span>`
+  ).join('') + '<span class="ml-1.5 text-[12px] text-slate-500">Ищу в архивах…</span>';
+  return d;
+}
+
+function actionButton(icon, label, onClick) {
+  const b = document.createElement('button');
+  b.className = `no-tap-highlight flex items-center gap-1.5 rounded-lg px-2 py-1 text-[11.5px] text-slate-500
+                 transition hover:bg-white/[.06] hover:text-slate-200`;
+  b.innerHTML = `<i class="ph-bold ${icon} text-[12px]"></i><span>${label}</span>`;
+  b.onclick = onClick;
+  return b;
+}
+
+function attachBotActions(row, text) {
+  const bar = row.querySelector('.md').parentElement.parentElement.lastElementChild;
+  bar.innerHTML = '';
+
+  const copy = actionButton('ph-copy', 'Копировать', async () => {
+    try { await navigator.clipboard.writeText(text); } catch { return; }
+    copy.innerHTML = '<i class="ph-bold ph-check text-[12px] text-emerald-400"></i><span class="text-emerald-400">Скопировано</span>';
+    setTimeout(() => { copy.innerHTML = '<i class="ph-bold ph-copy text-[12px]"></i><span>Копировать</span>'; }, 1600);
+  });
+  bar.appendChild(copy);
+
+  bar.appendChild(actionButton('ph-arrows-clockwise', 'Заново', () => {
+    if (streaming) return;
+    const chat = activeChat();
+    const lastUser = [...chat.messages].reverse().find(m => m.role === 'user');
+    if (!lastUser) return;
+    // Убираем последний ответ и переспрашиваем
+    if (chat.messages[chat.messages.length - 1]?.role === 'assistant') chat.messages.pop();
+    save(); renderMessages();
+    ask(lastUser.content, { replay: true });
+  }));
+}
+
+function renderMessages() {
+  const chat = activeChat();
+  el.messages.innerHTML = '';
+
+  if (!chat.messages.length) {
+    el.messages.appendChild(emptyState());
+    return;
+  }
+  chat.messages.forEach(m => {
+    if (m.role === 'user') { el.messages.appendChild(userBubble(m.content, false)); return; }
+    const row = botBubble(false);
+    row.querySelector('.md').innerHTML = renderMarkdown(m.content);
+    attachBotActions(row, m.content);
+    el.messages.appendChild(row);
+  });
+  requestAnimationFrame(() => scrollToBottom('auto'));
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Прокрутка
+   ═══════════════════════════════════════════════════════════════ */
+function scrollToBottom(behavior = 'smooth') {
+  el.scroller.scrollTo({ top: el.scroller.scrollHeight, behavior });
+}
+const atBottom = () => el.scroller.scrollHeight - el.scroller.scrollTop - el.scroller.clientHeight < 90;
+
+el.scroller.addEventListener('scroll', () => {
+  stick = atBottom();
+  el.toBottom.classList.toggle('opacity-0', stick);
+  el.toBottom.classList.toggle('pointer-events-none', stick);
+  el.toBottom.classList.toggle('translate-y-2', stick);
+});
+el.toBottom.onclick = () => { stick = true; scrollToBottom(); };
+
+/* ═══════════════════════════════════════════════════════════════
+   Поле ввода
+   ═══════════════════════════════════════════════════════════════ */
+function syncInput() {
+  const ta = el.input;
+  ta.style.height = 'auto';
+  ta.style.height = Math.min(ta.scrollHeight, 168) + 'px';
+
+  const armed = ta.value.trim().length > 0 || streaming;
+  el.send.disabled = !armed;
+  el.sendGlow.style.opacity = armed ? '1' : '0';
+  el.sendBg.style.opacity  = armed ? '0' : '1';
+  el.sendIcon.classList.toggle('text-white', armed);
+  el.sendIcon.classList.toggle('text-slate-500', !armed);
+  el.send.classList.toggle('shadow-lg', armed);
+  el.send.classList.toggle('shadow-purple-900/50', armed);
+}
+
+function setSendMode(mode) { // 'send' | 'stop'
+  el.sendIcon.className = mode === 'stop'
+    ? 'ph-fill ph-stop relative text-[15px] transition-colors duration-300'
+    : 'ph-fill ph-paper-plane-tilt relative text-[17px] transition-colors duration-300';
+  syncInput();
+}
+
+el.input.addEventListener('input', syncInput);
+el.input.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); }
+});
+el.send.onclick = () => (streaming ? stopStream() : submit());
+
+function submit() {
+  const text = el.input.value.trim();
+  if (!text || streaming) return;
+  el.input.value = '';
+  syncInput();
+  ask(text);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Запрос к API + потоковая печать
+   ═══════════════════════════════════════════════════════════════ */
+function stopStream() { controller?.abort(); }
+
+async function ask(question, { replay = false } = {}) {
+  const chat = activeChat();
+
+  if (!replay) {
+    if (!chat.messages.length) el.messages.innerHTML = '';
+    chat.messages.push({ role: 'user', content: question });
+    if (chat.title === 'Новый чат') {
+      chat.title = question.length > 42 ? question.slice(0, 42).trim() + '…' : question;
+      renderSidebar();
+    }
+    chat.universe = el.universe.value || chat.universe;
+    save();
+    el.messages.appendChild(userBubble(question, true));
+  }
+
+  stick = true;
+  scrollToBottom();
+
+  const row  = botBubble(true);
+  const body = row.querySelector('.md');
+  const bubble = body.parentElement;
+  const typing = typingIndicator();
+  bubble.replaceChild(typing, body);
+  el.messages.appendChild(row);
+  scrollToBottom();
+
+  streaming = true;
+  setSendMode('stop');
+  controller = new AbortController();
+
+  let raw = '', shown = 0, ended = false, started = false, failed = null, aborted = false;
+  let resolveDrained;
+  const drained = new Promise(r => (resolveDrained = r));
+
+  // Печать идёт по времени, а не «по кадру»: иначе на 120 Гц экране
+  // текст набегал бы ровно вдвое быстрее, чем на 60 Гц.
+  let lastTs = 0;
+  const tick = (ts) => {
+    if (!lastTs) lastTs = ts;
+    const dt = Math.min((ts - lastTs) / 1000, 0.1); // страховка от скачка после фонового таба
+    lastTs = ts;
+
+    const behind = raw.length - shown;
+    if (behind > 0) {
+      // Ровный ритм TYPE_CPS, но чем сильнее модель убежала вперёд,
+      // тем быстрее печатаем — иначе на длинных ответах копился бы хвост.
+      const cps = TYPE_CPS * (1 + behind / TYPE_CATCHUP);
+      shown = Math.min(raw.length, shown + Math.max(1, Math.round(cps * dt)));
+      body.innerHTML = renderMarkdown(raw.slice(0, shown));
+      if (stick) el.scroller.scrollTop = el.scroller.scrollHeight;
+    }
+    if (ended && shown >= raw.length) { resolveDrained(); return; }
+    requestAnimationFrame(tick);
+  };
+
+  // История без текущего вопроса — он уходит отдельным полем `question`.
+  // Нужна бэкенду, чтобы rewrite_query раскрыл местоимения («он», «его»).
+  // Сервер берёт последние 3 сообщения, шлём немного с запасом.
+  const history = chat.messages
+    .slice(0, -1)
+    .slice(-6)
+    .map(m => ({ role: m.role, content: m.content }));
+
+  try {
+    const res = await fetch(ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question, universe: chat.universe, history, mode: chatMode(chat) }),
+      signal: controller.signal,
+    });
+
+    if (!res.ok || !res.body) {
+      let detail = `HTTP ${res.status}`;
+      try { const j = await res.json(); if (j?.detail) detail = typeof j.detail === 'string' ? j.detail : JSON.stringify(j.detail); } catch {}
+      throw new Error(detail);
+    }
+
+    setStatus('online');
+    const reader  = res.body.getReader();
+    const decoder = new TextDecoder('utf-8');
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      const text = decoder.decode(value, { stream: true });
+      if (!text) continue;
+      if (!started) {
+        started = true;
+        bubble.replaceChild(body, typing);
+        bubble.parentElement.classList.add('is-streaming');
+        if (BEAM_HOLD_MS >= 0) bubble.classList.add('beam');
+        requestAnimationFrame(tick);
+      }
+      raw += text;
+    }
+    raw += decoder.decode();
+  } catch (err) {
+    // Стоп по кнопке — это не ошибка: текст, который успел прийти, оставляем.
+    if (err.name === 'AbortError') aborted = true;
+    else failed = err.message || 'Не удалось связаться с сервером';
+  } finally {
+    ended = true;
+    if (started) await drained; else resolveDrained();
+
+    streaming = false;
+    controller = null;
+    setSendMode('send');
+    row.classList.remove('is-streaming');
+    bubble.parentElement.classList.remove('is-streaming');
+
+    // Ответ дописан — луч замедляется и гаснет, потом класс снимаем совсем,
+    // чтобы не оставлять вечную анимацию на каждом сообщении в ленте.
+    if (bubble.classList.contains('beam')) {
+      if (BEAM_HOLD_MS > 0) {
+        // Фаза 1: луч замедляется, но горит в полную силу.
+        bubble.classList.add('beam-idle');
+        // Фаза 2: гаснет за BEAM_FADE_MS до конца — иначе всё время держался бы
+        // невидимый класс, а само свечение пропадало бы почти сразу.
+        const fade = Math.min(BEAM_FADE_MS, BEAM_HOLD_MS);
+        setTimeout(() => bubble.classList.add('beam-fade'), BEAM_HOLD_MS - fade);
+        setTimeout(() => bubble.classList.remove('beam', 'beam-idle', 'beam-fade'), BEAM_HOLD_MS + 150);
+      } else {
+        bubble.classList.remove('beam');
+      }
+    }
+
+    const partial = raw.trim().length > 0;
+
+    if (partial && !failed) {
+      // Дочитали до конца либо пользователь сам нажал стоп — ответ полноценный
+      body.innerHTML = renderMarkdown(raw);
+      if (!bubble.contains(body)) bubble.replaceChild(body, typing);
+      if (aborted) bubble.appendChild(streamNotice('stopped'));
+      chat.messages.push({ role: 'assistant', content: raw });
+      attachBotActions(row, raw);
+      save();
+    } else if (partial) {
+      // Стрим оборвался на середине. HTTP 200 уже ушёл, статус задним числом
+      // не поменять — поэтому честно помечаем ответ обрезанным
+      // и НЕ пишем огрызок в историю: перезагрузишь чат, а он там как настоящий.
+      setStatus('offline');
+      body.innerHTML = renderMarkdown(raw);
+      if (!bubble.contains(body)) bubble.replaceChild(body, typing);
+      bubble.appendChild(streamNotice('failed', failed));
+      bubble.classList.add('border-amber-500/30');
+      attachBotActions(row, raw); // «Заново» остаётся доступным
+    } else if (failed) {
+      setStatus('offline');
+      bubble.replaceChild(errorBody(failed), started ? body : typing);
+      bubble.classList.add('border-red-500/25', 'bg-red-500/[.05]');
+    } else {
+      row.remove(); // прервано до первого токена — не оставляем пустой пузырь
+    }
+    if (stick) scrollToBottom();
+  }
+}
+
+function streamNotice(kind, detail) {
+  const broken = kind === 'failed';
+  const d = document.createElement('div');
+  d.className = `mt-3 flex items-start gap-2 rounded-xl border px-3 py-2 text-[12px] leading-relaxed ${
+    broken ? 'border-amber-500/30 bg-amber-500/[.07] text-amber-200'
+           : 'border-white/10 bg-white/[.04] text-slate-400'}`;
+  d.innerHTML = broken
+    ? `<i class="ph-fill ph-warning mt-px shrink-0 text-[13px]"></i>
+       <span>Ответ оборван — связь прервалась. В историю не сохранён.${
+         detail ? `<br><span class="text-amber-300/70">${escapeHtml(detail)}</span>` : ''}</span>`
+    : `<i class="ph-fill ph-stop-circle mt-px shrink-0 text-[13px]"></i><span>Генерация остановлена.</span>`;
+  return d;
+}
+
+function errorBody(message) {
+  const d = document.createElement('div');
+  d.className = 'flex items-start gap-2.5 text-[13.5px]';
+  d.innerHTML = `
+    <i class="ph-fill ph-warning-circle mt-0.5 shrink-0 text-[16px] text-red-400"></i>
+    <div class="min-w-0">
+      <p class="font-medium text-red-300">Архив недоступен</p>
+      <p class="mt-0.5 break-words text-[12.5px] leading-relaxed text-slate-400">${escapeHtml(message)}</p>
+    </div>`;
+  return d;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Индикатор состояния сервера
+   ═══════════════════════════════════════════════════════════════ */
+function setStatus(mode) {
+  const map = {
+    online:  ['bg-emerald-400', 'Архив на связи'],
+    offline: ['bg-red-400',     'Сервер недоступен'],
+    empty:   ['bg-amber-400',   'База пуста'],
+    idle:    ['bg-amber-400',   'Подключение…'],
+  }[mode];
+  el.statusCore.className = `relative inline-flex h-2 w-2 rounded-full ${map[0]}`;
+  el.statusPing.className = `absolute inline-flex h-full w-full rounded-full ${map[0]} opacity-70${mode === 'online' ? ' animate-ping' : ''}`;
+  el.statusText.textContent = map[1];
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Сайдбар: открытие/закрытие
+   ═══════════════════════════════════════════════════════════════ */
+function openSidebar() {
+  el.sidebar.classList.remove('-translate-x-full');
+  el.overlay.classList.remove('opacity-0', 'pointer-events-none');
+}
+function closeSidebar() {
+  el.sidebar.classList.add('-translate-x-full');
+  el.overlay.classList.add('opacity-0', 'pointer-events-none');
+}
+$('openSidebar').onclick  = openSidebar;
+$('closeSidebar').onclick = closeSidebar;
+el.overlay.onclick        = closeSidebar;
+$('newChat').onclick      = newChat;
+el.universe.onchange      = () => {
+  activeChat().universe = el.universe.value;
+  save();
+  if (!activeChat().messages.length) renderMessages(); // подсказки под выбранную вселенную
+};
+
+document.addEventListener('keydown', e => {
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); newChat(); }
+  if (e.key === 'Escape' && streaming) stopStream();
+});
+
+/* ═══════════════════════════════════════════════════════════════
+   Старт
+   ═══════════════════════════════════════════════════════════════ */
+load();
+renderUniverses();
+renderSidebar();
+renderMessages();
+syncInput();
+setStatus('idle');
+loadUniverses();
+loadModes();
+if (window.matchMedia('(min-width: 768px)').matches) el.input.focus();
+</script>
+</body>
+</html>

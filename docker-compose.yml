@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  db:
+    # Используем официальный образ Postgres с уже установленным pgvector
+    image: pgvector/pgvector:pg16
+    container_name: lore_vector_db
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: secretpassword
+      POSTGRES_DB: lore_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  pgdata:

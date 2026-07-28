@@ -60,8 +60,12 @@ class ChatUseCase:
         else:
             rewritten_question = corrected_question
 
-        # Шаг 3: Эмбеддинг по улучшенному запросу
-        query_vector = await self.llm_client.generate_embedding(rewritten_question)
+        # Шаг 3: Эмбеддинг по улучшенному запросу.
+        # QUERY, а не DOCUMENT: вопрос и отвечающий на него абзац по словам
+        # обычно не похожи, и симметричный поиск такой абзац просто не находит.
+        query_vector = await self.llm_client.generate_embedding(
+            rewritten_question, task_type="RETRIEVAL_QUERY"
+        )
 
         relevant_chunks = await self.vector_store.search_similar(
             query_vector,

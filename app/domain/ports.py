@@ -26,7 +26,10 @@ class ILLMClient(Protocol):
     Порт для работы с LLM. 
     Бизнес-логике неважно, Gemini это, OpenAI или локальная Llama.
     """
-    async def generate_embedding(self, text: str) -> List[float]:
+    async def generate_embedding(
+        self, text: str, task_type: str = "RETRIEVAL_DOCUMENT"
+    ) -> List[float]:
+        """Вектор текста. Для вопроса пользователя нужен task_type="RETRIEVAL_QUERY"."""
         ...
 
     async def generate_answer_stream(

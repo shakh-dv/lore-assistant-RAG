@@ -35,9 +35,15 @@ async def rebuild():
 
         rows = {}
         for article_id, universe, chunk_text in chunks:
-            for term in extract_terms(chunk_text):
+            for term, is_proper in extract_terms(chunk_text).items():
+                row = rows.get((article_id, term))
+                if row:
+                    # Слово из соседнего чанка: имя — если хоть одно вхождение имя
+                    row.is_proper = row.is_proper or is_proper
+                    continue
                 rows[(article_id, term)] = LoreTerm(
-                    article_id=article_id, universe=universe, term=term
+                    article_id=article_id, universe=universe,
+                    term=term, is_proper=is_proper,
                 )
 
         session.add_all(list(rows.values()))

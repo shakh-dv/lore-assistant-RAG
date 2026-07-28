@@ -1,5 +1,5 @@
 from sqlalchemy.sql import func
-from sqlalchemy import Integer, JSON
+from sqlalchemy import Boolean, Integer, JSON
 from datetime import datetime
 from sqlalchemy import String, Text, ForeignKey, DateTime, Index, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -58,6 +58,11 @@ class LoreTerm(Base):
 
     # Хранится в нормализованном виде: нижний регистр, ё -> е
     term: Mapped[str] = mapped_column(String(64), nullable=False)
+
+    # Имя собственное или технический термин — только такие слова годятся
+    # в замену для опечатки. Без этого флага корректор «чинит» обычную
+    # лексику: «происходит» -> «проходит», «женат» -> «жена».
+    is_proper: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     __table_args__ = (
         # Одно и то же слово из одной статьи храним один раз

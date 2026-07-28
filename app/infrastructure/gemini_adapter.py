@@ -50,12 +50,17 @@ class GeminiAdapter:
         self.embedding_model = embedding_model_name
         self.embedding_dimension = embedding_dimension
 
-    async def generate_embedding(self, text: str) -> list[float]:
+    async def generate_embedding(
+        self, text: str, task_type: str = "RETRIEVAL_DOCUMENT"
+    ) -> list[float]:
+        # Асимметричный поиск: чанки кодируем как DOCUMENT, вопрос — как QUERY.
+        # Модель тогда кладёт вопрос рядом с отвечающим абзацем, а не рядом
+        # с похожим по формулировке. Дефолт — под загрузчики, их большинство.
         result = await self.client.aio.models.embed_content(
             model=self.embedding_model,
             contents=text,
             config=types.EmbedContentConfig(
-                task_type="RETRIEVAL_DOCUMENT",
+                task_type=task_type,
                 output_dimensionality=self.embedding_dimension,
             ),
         )

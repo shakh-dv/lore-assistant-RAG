@@ -32,6 +32,12 @@ class ILLMClient(Protocol):
         """Вектор текста. Для вопроса пользователя нужен task_type="RETRIEVAL_QUERY"."""
         ...
 
+    async def generate_embeddings_batch(
+        self, texts: List[str], task_type: str = "RETRIEVAL_DOCUMENT"
+    ) -> List[List[float]]:
+        """Батч-версия generate_embedding. Порядок результата соответствует порядку texts."""
+        ...
+
     async def generate_answer_stream(
         self, prompt: str, context: str, mode: AnswerMode = DEFAULT_MODE
     ) -> AsyncGenerator[str, None]:

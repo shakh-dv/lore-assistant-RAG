@@ -8,5 +8,10 @@ wheels/
 
 # Virtual environments
 .venv
+CLAUDE.md
+*.log
 
 .DS_Store
+
+# Отладочный вывод index_fandom.py --dry-run, регенерируется каждым прогоном
+dry_run_output.jsonl

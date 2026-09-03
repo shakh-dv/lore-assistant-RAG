@@ -133,17 +133,20 @@ async def load_data() -> None:
 
         vector_store = PostgresVectorStore(session)
 
-        chunks_to_save = []
-        for i, chunk in enumerate(chunks, 1):
-            # Заголовок раздела приклеиваем к тексту: без него «Ответ приводится
-            # к единому формату» не привязан ни к чему.
-            text = f"{chunk['header']}\n{chunk['text']}"
-            print(f"[{i}/{len(chunks)}] {chunk['text'][:60]}...")
-            embedding = await llm_client.generate_embedding(text)
+        # Заголовок раздела приклеиваем к тексту: без него «Ответ приводится
+        # к единому формату» не привязан ни к чему.
+        texts = [f"{chunk['header']}\n{chunk['text']}" for chunk in chunks]
+        print(f"Генерирую {len(texts)} эмбеддингов одним батчем...")
+        embeddings = await llm_client.generate_embeddings_batch(texts)
+        print("Готово.")
 
-            chunks_to_save.append({
+        chunks_to_save = [
+            {
                 "article_id": article.id,
                 "universe": UNIVERSE,
+                "article_title": TITLE,
+                "source_url": URL,
+                "section_path": chunk["header"],
                 "chunk_text": text,
                 "embedding": embedding,
                 "metadata": {
@@ -152,7 +155,9 @@ async def load_data() -> None:
                     "subsection": chunk["subsection"],
                     "raw_text": chunk["raw"],
                 },
-            })
+            }
+            for chunk, text, embedding in zip(chunks, texts, embeddings)
+        ]
 
         await vector_store.save_chunks(chunks_to_save)
         await session.commit()

@@ -1,7 +1,9 @@
 from sqlalchemy.sql import func
-from sqlalchemy import Boolean, Integer, JSON
+from sqlalchemy import Boolean, Integer
 from datetime import datetime
+from typing import Optional
 from sqlalchemy import String, Text, ForeignKey, DateTime, Index, UniqueConstraint
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from pgvector.sqlalchemy import Vector
 
@@ -15,7 +17,7 @@ class Article(Base):
     title: Mapped[str] = mapped_column(String(255), index=True)
     url: Mapped[str] = mapped_column(String, nullable=False, unique=True) # Добавил unique=True
     # УБРАЛ embedding из Article, он тут не нужен!
-    metadata_obj: Mapped[dict] = mapped_column(JSON, default=dict) # Переименовал, чтобы не конфликтовало со встроенным metadata в Base
+    metadata_obj: Mapped[dict] = mapped_column(JSONB, default=dict) # Переименовал, чтобы не конфликтовало со встроенным metadata в Base
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), server_onupdate=func.now())
     
@@ -31,15 +33,41 @@ class ArticleChunk(Base):
     
     # ВЕРНУЛ universe как отдельную колонку с индексом для скорости!
     universe: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
-    
+
+    # Денормализовано из Article: (1) дописывается в текст перед эмбеддингом —
+    # коротким секциям без имени персонажа это сильно помогает retrieval;
+    # (2) отдаётся при цитировании ответа без JOIN на articles.
+    article_title: Mapped[str] = mapped_column(String(255), nullable=False)
+    source_url: Mapped[str] = mapped_column(String, nullable=False)
+
+    # "Статья > Раздел > Подраздел" — путь до места в структуре вики, откуда
+    # взят чанк. NULL у чанков, залитых до structure-aware чанкера (ручные
+    # load_gts/load_lore/load_human).
+    section_path: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+
+    # text/infobox/list — сериализованные инфобоксы и обычный текст нужно
+    # показывать и обрабатывать по-разному.
+    chunk_type: Mapped[str] = mapped_column(String(20), nullable=False, server_default="text")
+
+    # Задел под hierarchical (parent-child) retrieval — пока никто не пишет
+    # сюда данные, просто чтобы потом не делать миграцию под саму колонку.
+    parent_chunk_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("article_chunks.id", ondelete="SET NULL"), nullable=True
+    )
+
     chunk_text: Mapped[str] = mapped_column(Text, nullable=False)
     embedding: Mapped[list[float]] = mapped_column(Vector(768)) # Аннотация list[float] для SQLAlchemy
-    metadata_obj: Mapped[dict] = mapped_column(JSON, default=dict)
-    
+    # JSONB, не JSON: бинарное хранение и поддержка операторов (@>, ?), если
+    # понадобится фильтрация по содержимому. Индекс на неё пока НЕ ставим —
+    # ни одного запроса с фильтром по metadata_obj в проекте сейчас нет,
+    # GIN добавляется одной командой в момент, когда такой запрос появится.
+    metadata_obj: Mapped[dict] = mapped_column(JSONB, default=dict)
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), server_onupdate=func.now())
 
     article: Mapped["Article"] = relationship(back_populates="chunks")
+    parent: Mapped[Optional["ArticleChunk"]] = relationship(remote_side="ArticleChunk.id")
 
 
 class LoreTerm(Base):

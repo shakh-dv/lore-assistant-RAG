@@ -63,9 +63,25 @@ class ChatUseCase:
         # Шаг 3: Эмбеддинг по улучшенному запросу.
         # QUERY, а не DOCUMENT: вопрос и отвечающий на него абзац по словам
         # обычно не похожи, и симметричный поиск такой абзац просто не находит.
-        query_vector = await self.llm_client.generate_embedding(
-            rewritten_question, task_type="RETRIEVAL_QUERY"
-        )
+        #
+        # Ловим широко (не конкретный класс ошибки Gemini — use_case не должен
+        # знать про детали конкретного адаптера) — эмбеддинг вопроса это
+        # единственная точка в чате, которая реально зовёт внешний API перед
+        # стримингом. Без этого падение (например дневная квота исчерпана)
+        # улетало необработанным traceback прямо в HTTP-ответ, вместо
+        # вежливого сообщения пользователю.
+        try:
+            query_vector = await self.llm_client.generate_embedding(
+                rewritten_question, task_type="RETRIEVAL_QUERY"
+            )
+        except Exception as exc:
+            yield (
+                "Не получилось обратиться к архивам — сервис эмбеддингов сейчас "
+                "недоступен (возможно, исчерпан дневной лимит API). "
+                "Попробуй ещё раз чуть позже."
+            )
+            print(f"⚠️  Ошибка эмбеддинга вопроса: {type(exc).__name__}: {exc}")
+            return
 
         relevant_chunks = await self.vector_store.search_similar(
             query_vector,

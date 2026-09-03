@@ -96,10 +96,17 @@ class PostgresVectorStore(IVectorStore):
         self.session = session
 
     async def save_chunks(self, chunks_data: List[Dict[str, Any]]) -> None:
+        # article_title/source_url — обязательные ключи, без .get(): лучше упасть
+        # явным KeyError на первом чанке, чем тихо словить NOT NULL violation
+        # в БД через сотни статей.
         orm_chinks = [
             ArticleChunk(
                 article_id=chunk["article_id"],
                 universe=chunk["universe"],
+                article_title=chunk["article_title"],
+                source_url=chunk["source_url"],
+                section_path=chunk.get("section_path"),
+                chunk_type=chunk.get("chunk_type", "text"),
                 chunk_text=chunk["chunk_text"],
                 embedding=chunk["embedding"],
                 metadata_obj=chunk.get("metadata", {})

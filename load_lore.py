@@ -46,19 +46,24 @@ async def load_data():
         vector_store = PostgresVectorStore(session)
 
         # 5. Превращаем текст в чанки с векторами
-        chunks_to_save = []
-        for text in chunks_text:
-            print(f"Генерирую вектор для: {text[:30]}...")
-            embedding = await llm_client.generate_embedding(text)
-            
-            chunks_to_save.append({
+        print(f"Генерирую {len(chunks_text)} эмбеддингов одним батчем...")
+        embeddings = await llm_client.generate_embeddings_batch(chunks_text)
+        print("Готово.")
+
+        chunks_to_save = [
+            {
                 "article_id": article.id,
                 "universe": universe,
+                "article_title": title,
+                "source_url": url,
+                "section_path": None,
                 "chunk_text": text,
                 "embedding": embedding,
                 "metadata": {"source": "wiki"}
-            })
-        
+            }
+            for text, embedding in zip(chunks_text, embeddings)
+        ]
+
         # 6. Сохраняем в базу
         await vector_store.save_chunks(chunks_to_save)
         await session.commit()

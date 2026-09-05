@@ -11,6 +11,11 @@ class IVectorStore(Protocol):
         ...
 
     async def search_similar(self, query_vector: List[float], universe: str, limit: int = 5) -> List[Dict[str, Any]]:
+        """
+        Top-k ближайших чанков одной вселенной, отсортированных по близости.
+        Каждый элемент: id, article_id, article_title, section_path, chunk_type,
+        chunk_text, universe, distance (cosine distance — меньше значит ближе).
+        """
         ...
 
     async def list_universes(self) -> List[Dict[str, Any]]:

@@ -153,25 +153,35 @@ class PostgresVectorStore(IVectorStore):
 
     async def search_similar(self, query_vector: List[float], universe: str, limit: int = 5) -> List[Dict[str, Any]]:
         """
-        Ищем самые похожие тексты в вектоной базе данных
+        Top-k ближайших чанков вселенной по косинусному расстоянию.
+
+        Кроме текста отдаёт article_title/section_path/chunk_type и distance —
+        ChatUseCase читает отсюда только chunk_text, остальное нужно eval-у
+        (сопоставить найденное с эталоном по названию статьи) и будущему
+        порогу релевантности. distance — cosine distance: 0 — идентично,
+        меньше — ближе.
         """
+        distance = ArticleChunk.embedding.cosine_distance(query_vector).label("distance")
         stmt = (
-            select(ArticleChunk)
+            select(ArticleChunk, distance)
             .where(ArticleChunk.universe == universe)
             .order_by(ArticleChunk.embedding.cosine_distance(query_vector))
             .limit(limit)
         )
-        result = await self.session.execute(stmt)
-        chunks = result.scalars().all()
+        rows = (await self.session.execute(stmt)).all()
 
         return [
             {
                 "id": chunk.id,
                 "article_id": chunk.article_id,
+                "article_title": chunk.article_title,
+                "section_path": chunk.section_path,
+                "chunk_type": chunk.chunk_type,
                 "chunk_text": chunk.chunk_text,
                 "universe": chunk.universe,
+                "distance": float(dist),
             }
-            for chunk in chunks
+            for chunk, dist in rows
         ]
 
     async def correct_typos(self, query: str, universe: str) -> str:

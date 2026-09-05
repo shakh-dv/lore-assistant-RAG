@@ -1,0 +1,1625 @@
+{
+  "meta": {
+    "timestamp": "2026-09-05T16:17:06",
+    "label": "baseline-retrieval",
+    "mode": "retrieval",
+    "git_commit": "ea50d7f",
+    "dataset": "/Users/mac/GTS/lore-assistant-RAG-/eval/dataset.yaml",
+    "universe": "AC",
+    "k": 5,
+    "n_questions": 31,
+    "result_path": "/Users/mac/GTS/lore-assistant-RAG-/eval/results/2026-09-05_1617_baseline-retrieval.json"
+  },
+  "aggregates": {
+    "overall": {
+      "n": 31,
+      "errors": 0,
+      "hits": 26,
+      "recall_at_k": 1.0,
+      "mrr": 0.859,
+      "typo_fixed_rate": 0.75,
+      "unexpected_correction_rate": 0.0741,
+      "mean_best_distance": 0.3738
+    },
+    "by_type": {
+      "fact": {
+        "n": 8,
+        "errors": 0,
+        "hits": 8,
+        "recall_at_k": 1.0,
+        "mrr": 0.8542,
+        "unexpected_correction_rate": 0.0
+      },
+      "followup": {
+        "n": 3,
+        "errors": 0,
+        "hits": 3,
+        "recall_at_k": 1.0,
+        "mrr": 0.6111,
+        "unexpected_correction_rate": 0.0
+      },
+      "narrative": {
+        "n": 7,
+        "errors": 0,
+        "hits": 7,
+        "recall_at_k": 1.0,
+        "mrr": 0.9048,
+        "unexpected_correction_rate": 0.0
+      },
+      "out_of_scope": {
+        "n": 5,
+        "errors": 0,
+        "unexpected_correction_rate": 0.4,
+        "mean_best_distance": 0.3738
+      },
+      "relation": {
+        "n": 4,
+        "errors": 0,
+        "hits": 4,
+        "recall_at_k": 1.0,
+        "mrr": 0.8333,
+        "unexpected_correction_rate": 0.0
+      },
+      "typo": {
+        "n": 4,
+        "errors": 0,
+        "hits": 4,
+        "recall_at_k": 1.0,
+        "mrr": 1.0,
+        "typo_fixed_rate": 0.75
+      }
+    }
+  },
+  "questions": [
+    {
+      "id": "fact-ezio-birth",
+      "type": "fact",
+      "question": "Когда родился Эцио Аудиторе?",
+      "corrected_question": "Когда родился Эцио Аудиторе?",
+      "rewritten_question": null,
+      "hit": true,
+      "rank": 1,
+      "best_distance": 0.22098036514323782,
+      "top5": [
+        {
+          "article_title": "Эцио Аудиторе да Фиренце",
+          "section_path": "Эцио Аудиторе да Фиренце > Биография > Детство и молодость",
+          "chunk_type": "text",
+          "distance": 0.22098036514323782
+        },
+        {
+          "article_title": "Эцио Аудиторе да Фиренце",
+          "section_path": "Эцио Аудиторе да Фиренце",
+          "chunk_type": "infobox",
+          "distance": 0.22527761152094916
+        },
+        {
+          "article_title": "Эцио Аудиторе да Фиренце",
+          "section_path": "Эцио Аудиторе да Фиренце",
+          "chunk_type": "text",
+          "distance": 0.2713560769097535
+        },
+        {
+          "article_title": "Эцио Аудиторе да Фиренце",
+          "section_path": "Эцио Аудиторе да Фиренце > Интересные факты",
+          "chunk_type": "text",
+          "distance": 0.2729109451435864
+        },
+        {
+          "article_title": "Эцио Аудиторе да Фиренце",
+          "section_path": "Эцио Аудиторе да Фиренце > Биография > Детство и молодость",
+          "chunk_type": "text",
+          "distance": 0.27464326993357224
+        }
+      ],
+      "typo_fixed": null,
+      "unexpected_correction": false,
+      "answer": null,
+      "facts_found": null,
+      "facts_missing": null,
+      "forbidden_found": null,
+      "refusal_ok": null,
+      "error": null
+    },
+    {
+      "id": "fact-altair-birthplace",
+      "type": "fact",
+      "question": "Где родился Альтаир?",
+      "corrected_question": "Где родился Альтаир?",
+      "rewritten_question": null,
+      "hit": true,
+      "rank": 1,
+      "best_distance": 0.23330957056643076,
+      "top5": [
+        {
+          "article_title": "Альтаир ибн Ла-Ахад",
+          "section_path": "Альтаир ибн Ла-Ахад > Биография > Детство и юность",
+          "chunk_type": "text",
+          "distance": 0.23330957056643076
+        },
+        {
+          "article_title": "Альтаир ибн Ла-Ахад",
+          "section_path": "Альтаир ибн Ла-Ахад",
+          "chunk_type": "infobox",
+          "distance": 0.2458709284857179
+        },
+        {
+          "article_title": "Альтаир ибн Ла-Ахад",
+          "section_path": "Альтаир ибн Ла-Ахад",
+          "chunk_type": "text",
+          "distance": 0.2556668160359459
+        },
+        {
+          "article_title": "Аббас Софиан",
+          "section_path": "Аббас Софиан > Биография > Детство и молодость",
+          "chunk_type": "text",
+          "distance": 0.2790537410740027
+        },
+        {
+          "article_title": "Альтаир ибн Ла-Ахад",
+          "section_path": "Альтаир ибн Ла-Ахад > Интересные факты",
+          "chunk_type": "text",
+          "distance": 0.27988996802790234
+        }
+      ],
+      "typo_fixed": null,
+      "unexpected_correction": false,
+      "answer": null,
+      "facts_found": null,
+      "facts_missing": null,
+      "forbidden_found": null,
+      "refusal_ok": null,
+      "error": null
+    },
+    {
+      "id": "fact-altair-birthyear",
+      "type": "fact",
+      "question": "В каком году родился Альтаир ибн Ла-Ахад?",
+      "corrected_question": "В каком году родился Альтаир ибн Ла-Ахад?",
+      "rewritten_question": null,
+      "hit": true,
+      "rank": 1,
+      "best_distance": 0.21164567968443404,
+      "top5": [
+        {
+          "article_title": "Альтаир ибн Ла-Ахад",
+          "section_path": "Альтаир ибн Ла-Ахад",
+          "chunk_type": "infobox",
+          "distance": 0.21164567968443404
+        },
+        {
+          "article_title": "Альтаир ибн Ла-Ахад",
+          "section_path": "Альтаир ибн Ла-Ахад",
+          "chunk_type": "text",
+          "distance": 0.21675437684517984
+        },
+        {
+          "article_title": "Альтаир ибн Ла-Ахад",
+          "section_path": "Альтаир ибн Ла-Ахад > Биография > Детство и юность",
+          "chunk_type": "text",
+          "distance": 0.22531973041912212
+        },
+        {
+          "article_title": "Альтаир ибн Ла-Ахад",
+          "section_path": "Альтаир ибн Ла-Ахад > Интересные факты",
+          "chunk_type": "text",
+          "distance": 0.25025916629737344
+        },
+        {
+          "article_title": "Альтаир ибн Ла-Ахад",
+          "section_path": "Альтаир ибн Ла-Ахад > Интересные факты",
+          "chunk_type": "text",
+          "distance": 0.25553974490474385
+        }
+      ],
+      "typo_fixed": null,
+      "unexpected_correction": false,
+      "answer": null,
+      "facts_found": null,
+      "facts_missing": null,
+      "forbidden_found": null,
+      "refusal_ok": null,
+      "error": null
+    },
+    {
+      "id": "fact-bayek-birthplace",
+      "type": "fact",
+      "question": "Где родился Байек?",
+      "corrected_question": "Где родился Байек?",
+      "rewritten_question": null,
+      "hit": true,
+      "rank": 1,
+      "best_distance": 0.21092533675297653,
+      "top5": [
+        {
+          "article_title": "Байек",
+          "section_path": "Байек > Биография > Ранняя жизнь > Молодость в Сиве",
+          "chunk_type": "text",
+          "distance": 0.21092533675297653
+        },
+        {
+          "article_title": "Байек",
+          "section_path": "Байек",
+          "chunk_type": "infobox",
+          "distance": 0.22456372113179934
+        },
+        {
+          "article_title": "Байек",
+          "section_path": "Байек > Биография > Ранняя жизнь > В поисках отца",
+          "chunk_type": "text",
+          "distance": 0.24640048488009458
+        },
+        {
+          "article_title": "Байек",
+          "section_path": "Байек > Биография > Ранняя жизнь > Становление последним Меджаем",
+          "chunk_type": "text",
+          "distance": 0.25454200379545233
+        },
+        {
+          "article_title": "Байек",
+          "section_path": "Байек",
+          "chunk_type": "text",
+          "distance": 0.2688237661860883
+        }
+      ],
+      "typo_fixed": null,
+      "unexpected_correction": false,
+      "answer": null,
+      "facts_found": null,
+      "facts_missing": null,
+      "forbidden_found": null,
+      "refusal_ok": null,
+      "error": null
+    },
+    {
+      "id": "fact-kassandra-birthplace",
+      "type": "fact",
+      "question": "Где родилась Кассандра?",
+      "corrected_question": "Где родилась Кассандра?",
+      "rewritten_question": null,
+      "hit": true,
+      "rank": 1,
+      "best_distance": 0.2306014625865368,
+      "top5": [
+        {
+          "article_title": "Кассандра",
+          "section_path": "Кассандра > Биография > Ранние годы > Детство",
+          "chunk_type": "text",
+          "distance": 0.2306014625865368
+        },
+        {
+          "article_title": "Кассандра",
+          "section_path": "Кассандра",
+          "chunk_type": "infobox",
+          "distance": 0.2338951524905728
+        },
+        {
+          "article_title": "Кассандра",
+          "section_path": "Кассандра > Биография > Ранние годы > Изгнание из Спарты",
+          "chunk_type": "text",
+          "distance": 0.25385417647020136
+        },
+        {
+          "article_title": "Кассандра",
+          "section_path": "Кассандра",
+          "chunk_type": "text",
+          "distance": 0.25887604809724263
+        },
+        {
+          "article_title": "Кассандра",
+          "section_path": "Кассандра > Биография > Ранние годы > Жизнь в качестве наёмницы",
+          "chunk_type": "text",
+          "distance": 0.2762721072119394
+        }
+      ],
+      "typo_fixed": null,
+      "unexpected_correction": false,
+      "answer": null,
+      "facts_found": null,
+      "facts_missing": null,
+      "forbidden_found": null,
+      "refusal_ok": null,
+      "error": null
+    },
+    {
+      "id": "fact-desmond-birthplace",
+      "type": "fact",
+      "question": "Где родился Дезмонд Майлс?",
+      "corrected_question": "Где родился Дезмонд Майлс?",
+      "rewritten_question": null,
+      "hit": true,
+      "rank": 2,
+      "best_distance": 0.2646831392735548,
+      "top5": [
+        {
+          "article_title": "Дезмонд Майлс",
+          "section_path": "Дезмонд Майлс",
+          "chunk_type": "infobox",
+          "distance": 0.2646831392735548
+        },
+        {
+          "article_title": "Дезмонд Майлс",
+          "section_path": "Дезмонд Майлс > Биография > Детство",
+          "chunk_type": "text",
+          "distance": 0.2685764575280998
+        },
+        {
+          "article_title": "Дезмонд Майлс",
+          "section_path": "Дезмонд Майлс > Биография > Побег от родителей",
+          "chunk_type": "text",
+          "distance": 0.284236527855226
+        },
+        {
+          "article_title": "Дезмонд Майлс",
+          "section_path": "Дезмонд Майлс > Биография > Побег от родителей",
+          "chunk_type": "text",
+          "distance": 0.2855092458216706
+        },
+        {
+          "article_title": "Дезмонд Майлс",
+          "section_path": "Дезмонд Майлс > Интересные факты",
+          "chunk_type": "text",
+          "distance": 0.296580203363625
+        }
+      ],
+      "typo_fixed": null,
+      "unexpected_correction": false,
+      "answer": null,
+      "facts_found": null,
+      "facts_missing": null,
+      "forbidden_found": null,
+      "refusal_ok": null,
+      "error": null
+    },
+    {
+      "id": "fact-ahmet-killer",
+      "type": "fact",
+      "question": "Кто убил принца Ахмета?",
+      "corrected_question": "Кто убил принца Ахмета?",
+      "rewritten_question": null,
+      "hit": true,
+      "rank": 3,
+      "best_distance": 0.24024995719459274,
+      "top5": [
+        {
+          "article_title": "Ахмет",
+          "section_path": "Ахмет",
+          "chunk_type": "text",
+          "distance": 0.24024995719459274
+        },
+        {
+          "article_title": "Ахмет",
+          "section_path": "Ахмет",
+          "chunk_type": "infobox",
+          "distance": 0.25982179497851055
+        },
+        {
+          "article_title": "Ахмет",
+          "section_path": "Ахмет > Биография > Смерть",
+          "chunk_type": "text",
+          "distance": 0.2606766054866221
+        },
+        {
+          "article_title": "Ахмет",
+          "section_path": "Ахмет > Последние слова",
+          "chunk_type": "text",
+          "distance": 0.2748337586396815
+        },
+        {
+          "article_title": "Ахмет",
+          "section_path": "Ахмет > Личность и характеристики",
+          "chunk_type": "text",
+          "distance": 0.3133888204962355
+        }
+      ],
+      "typo_fixed": null,
+      "unexpected_correction": false,
+      "answer": null,
+      "facts_found": null,
+      "facts_missing": null,
+      "forbidden_found": null,
+      "refusal_ok": null,
+      "error": null
+    },
+    {
+      "id": "fact-ahmet-homeland",
+      "type": "fact",
+      "question": "Откуда родом принц Ахмет?",
+      "corrected_question": "Откуда родом принц Ахмет?",
+      "rewritten_question": null,
+      "hit": true,
+      "rank": 1,
+      "best_distance": 0.23951767920927003,
+      "top5": [
+        {
+          "article_title": "Ахмет",
+          "section_path": "Ахмет",
+          "chunk_type": "infobox",
+          "distance": 0.23951767920927003
+        },
+        {
+          "article_title": "Ахмет",
+          "section_path": "Ахмет",
+          "chunk_type": "text",
+          "distance": 0.27977361814014134
+        },
+        {
+          "article_title": "Ахмет",
+          "section_path": "Ахмет > Личность и характеристики",
+          "chunk_type": "text",
+          "distance": 0.3036821141814324
+        },
+        {
+          "article_title": "Ахмет",
+          "section_path": "Ахмет > Биография > Вступление в Орден",
+          "chunk_type": "text",
+          "distance": 0.3277773824559479
+        },
+        {
+          "article_title": "Ахмет",
+          "section_path": "Ахмет > Последние слова",
+          "chunk_type": "text",
+          "distance": 0.33846519607678927
+        }
+      ],
+      "typo_fixed": null,
+      "unexpected_correction": false,
+      "answer": null,
+      "facts_found": null,
+      "facts_missing": null,
+      "forbidden_found": null,
+      "refusal_ok": null,
+      "error": null
+    },
+    {
+      "id": "narr-masyaf-1189",
+      "type": "narrative",
+      "question": "Что произошло при нападении на Масиаф в 1189 году?",
+      "corrected_question": "Что произошло при нападении на Масиаф в 1189 году?",
+      "rewritten_question": null,
+      "hit": true,
+      "rank": 1,
+      "best_distance": 0.26184394817272194,
+      "top5": [
+        {
+          "article_title": "Альтаир ибн Ла-Ахад",
+          "section_path": "Альтаир ибн Ла-Ахад > Биография > Нападение на Масиаф",
+          "chunk_type": "text",
+          "distance": 0.26184394817272194
+        },
+        {
+          "article_title": "Аль-Муалим",
+          "section_path": "Аль-Муалим > Биография > Осада Масиафа",
+          "chunk_type": "text",
+          "distance": 0.2675615489257278
+        },
+        {
+          "article_title": "Assassin's Creed: Тайный крестовый поход",
+          "section_path": "Assassin's Creed: Тайный крестовый поход > Cюжет > Часть первая > 2",
+          "chunk_type": "text",
+          "distance": 0.30704381092517763
+        },
+        {
+          "article_title": "Ахмад Софиан",
+          "section_path": "Ахмад Софиан",
+          "chunk_type": "infobox",
+          "distance": 0.32317644725013794
+        },
+        {
+          "article_title": "Аль-Муалим",
+          "section_path": "Аль-Муалим > Биография > Предательство Хараса",
+          "chunk_type": "text",
+          "distance": 0.3240913643007428
+        }
+      ],
+      "typo_fixed": null,
+      "unexpected_correction": false,
+      "answer": null,
+      "facts_found": null,
+      "facts_missing": null,
+      "forbidden_found": null,
+      "refusal_ok": null,
+      "error": null
+    },
+    {
+      "id": "narr-altair-death",
+      "type": "narrative",
+      "question": "Как умер Альтаир?",
+      "corrected_question": "Как умер Альтаир?",
+      "rewritten_question": null,
+      "hit": true,
+      "rank": 1,
+      "best_distance": 0.23078498265329228,
+      "top5": [
+        {
+          "article_title": "Альтаир ибн Ла-Ахад",
+          "section_path": "Альтаир ибн Ла-Ахад > Биография > Смерть Альтаира",
+          "chunk_type": "text",
+          "distance": 0.23078498265329228
+        },
+        {
+          "article_title": "Аль-Муалим",
+          "section_path": "Аль-Муалим > Биография > Смерть",
+          "chunk_type": "text",
+          "distance": 0.24009993628479886
+        },
+        {
+          "article_title": "Альтаир ибн Ла-Ахад",
+          "section_path": "Альтаир ибн Ла-Ахад > Биография > После гибели Аль-Муалима",
+          "chunk_type": "text",
+          "distance": 0.2414607918445032
+        },
+        {
+          "article_title": "Адха",
+          "section_path": "Адха > Биография > Смерть",
+          "chunk_type": "text",
+          "distance": 0.25583733912128026
+        },
+        {
+          "article_title": "Аббас Софиан",
+          "section_path": "Аббас Софиан > Последние слова",
+          "chunk_type": "text",
+          "distance": 0.25598681410337965
+        }
+      ],
+      "typo_fixed": null,
+      "unexpected_correction": false,
+      "answer": null,
+      "facts_found": null,
+      "facts_missing": null,
+      "forbidden_found": null,
+      "refusal_ok": null,
+      "error": null
+    },
+    {
+      "id": "narr-bayek-medjay",
+      "type": "narrative",
+      "question": "Как Байек стал последним Меджаем?",
+      "corrected_question": "Как Байек стал последним Меджаем?",
+      "rewritten_question": null,
+      "hit": true,
+      "rank": 1,
+      "best_distance": 0.19192385106506882,
+      "top5": [
+        {
+          "article_title": "Байек",
+          "section_path": "Байек > Биография > Ранняя жизнь > Становление последним Меджаем",
+          "chunk_type": "text",
+          "distance": 0.19192385106506882
+        },
+        {
+          "article_title": "Байек",
+          "section_path": "Байек > Биография > Ранняя жизнь > Становление последним Меджаем",
+          "chunk_type": "text",
+          "distance": 0.22951998824393194
+        },
+        {
+          "article_title": "Байек",
+          "section_path": "Байек > Биография > Жажда мести за сына > Убийство \"Змея\"",
+          "chunk_type": "text",
+          "distance": 0.25625642937088844
+        },
+        {
+          "article_title": "Байек",
+          "section_path": "Байек > Биография > Александрийская Гражданская Война > Знакомство с Клеопатрой",
+          "chunk_type": "text",
+          "distance": 0.257236450871727
+        },
+        {
+          "article_title": "Байек",
+          "section_path": "Байек",
+          "chunk_type": "text",
+          "distance": 0.25855777491557563
+        }
+      ],
+      "typo_fixed": null,
+      "unexpected_correction": false,
+      "answer": null,
+      "facts_found": null,
+      "facts_missing": null,
+      "forbidden_found": null,
+      "refusal_ok": null,
+      "error": null
+    },
+    {
+      "id": "narr-kassandra-exile",
+      "type": "narrative",
+      "question": "Почему Кассандру изгнали из Спарты?",
+      "corrected_question": "Почему Кассандру изгнали из Спарты?",
+      "rewritten_question": null,
+      "hit": true,
+      "rank": 1,
+      "best_distance": 0.18956243205435497,
+      "top5": [
+        {
+          "article_title": "Кассандра",
+          "section_path": "Кассандра > Биография > Ранние годы > Изгнание из Спарты",
+          "chunk_type": "text",
+          "distance": 0.18956243205435497
+        },
+        {
+          "article_title": "Кассандра",
+          "section_path": "Кассандра > Биография > Охота на Культ Космоса > Убийство царя Спарты",
+          "chunk_type": "text",
+          "distance": 0.24694074814028755
+        },
+        {
+          "article_title": "Кассандра",
+          "section_path": "Кассандра > Биография > Охота на Культ Космоса > Возвращение в Спарту",
+          "chunk_type": "text",
+          "distance": 0.2584946262851132
+        },
+        {
+          "article_title": "Кассандра",
+          "section_path": "Кассандра > Биография > Охота на Культ Космоса > Убийство царя Спарты",
+          "chunk_type": "text",
+          "distance": 0.2613902663680102
+        },
+        {
+          "article_title": "Кассандра",
+          "section_path": "Кассандра > Биография > Охота на Культ Космоса > Возвращение в Спарту",
+          "chunk_type": "text",
+          "distance": 0.261623776875473
+        }
+      ],
+      "typo_fixed": null,
+      "unexpected_correction": false,
+      "answer": null,
+      "facts_found": null,
+      "facts_missing": null,
+      "forbidden_found": null,
+      "refusal_ok": null,
+      "error": null
+    },
+    {
+      "id": "narr-khemu-death",
+      "type": "narrative",
+      "question": "Как погиб Хему, сын Байека?",
+      "corrected_question": "Как погиб Хему, сын Байека?",
+      "rewritten_question": null,
+      "hit": true,
+      "rank": 1,
+      "best_distance": 0.19386921822073566,
+      "top5": [
+        {
+          "article_title": "Байек",
+          "section_path": "Байек > Биография > Ранняя жизнь > Смерть Хему",
+          "chunk_type": "text",
+          "distance": 0.19386921822073566
+        },
+        {
+          "article_title": "Байек",
+          "section_path": "Байек > Биография > Жажда мести за сына > Отслеживание \"Цапли\"",
+          "chunk_type": "text",
+          "distance": 0.21477239839504403
+        },
+        {
+          "article_title": "Байек",
+          "section_path": "Байек > Биография > Ранняя жизнь > Смерть Хему",
+          "chunk_type": "text",
+          "distance": 0.22501794953493082
+        },
+        {
+          "article_title": "Байек",
+          "section_path": "Байек > Биография > Ранняя жизнь > Становление последним Меджаем",
+          "chunk_type": "text",
+          "distance": 0.24181120945819135
+        },
+        {
+          "article_title": "Байек",
+          "section_path": "Байек > Биография > Жажда мести за сына > Возвращение в Сиву",
+          "chunk_type": "text",
+          "distance": 0.27867098715109784
+        }
+      ],
+      "typo_fixed": null,
+      "unexpected_correction": false,
+      "answer": null,
+      "facts_found": null,
+      "facts_missing": null,
+      "forbidden_found": null,
+      "refusal_ok": null,
+      "error": null
+    },
+    {
+      "id": "narr-ahmet-templars",
+      "type": "narrative",
+      "question": "Как Ахмет вступил в Орден тамплиеров?",
+      "corrected_question": "Как Ахмет вступил в Орден тамплиеров?",
+      "rewritten_question": null,
+      "hit": true,
+      "rank": 1,
+      "best_distance": 0.223754595361229,
+      "top5": [
+        {
+          "article_title": "Ахмет",
+          "section_path": "Ахмет > Биография > Вступление в Орден",
+          "chunk_type": "text",
+          "distance": 0.223754595361229
+        },
+        {
+          "article_title": "Ахмет",
+          "section_path": "Ахмет",
+          "chunk_type": "infobox",
+          "distance": 0.2662040395215053
+        },
+        {
+          "article_title": "Ахмет",
+          "section_path": "Ахмет",
+          "chunk_type": "text",
+          "distance": 0.2671918818897403
+        },
+        {
+          "article_title": "Ахмет",
+          "section_path": "Ахмет > Личность и характеристики",
+          "chunk_type": "text",
+          "distance": 0.28209994872078925
+        },
+        {
+          "article_title": "Ахмет",
+          "section_path": "Ахмет > Биография > Смерть",
+          "chunk_type": "text",
+          "distance": 0.3229304843394488
+        }
+      ],
+      "typo_fixed": null,
+      "unexpected_correction": false,
+      "answer": null,
+      "facts_found": null,
+      "facts_missing": null,
+      "forbidden_found": null,
+      "refusal_ok": null,
+      "error": null
+    },
+    {
+      "id": "narr-solomon-temple",
+      "type": "narrative",
+      "question": "Что произошло в храме Соломона?",
+      "corrected_question": "Что произошло в храме Соломона?",
+      "rewritten_question": null,
+      "hit": true,
+      "rank": 3,
+      "best_distance": 0.33242321540158437,
+      "top5": [
+        {
+          "article_title": "Кредо ассасинов",
+          "section_path": "Кредо ассасинов > Случаи нарушения Кредо",
+          "chunk_type": "text",
+          "distance": 0.33242321540158437
+        },
+        {
+          "article_title": "Альтаир ибн Ла-Ахад",
+          "section_path": "Альтаир ибн Ла-Ахад > Биография > Погоня за Яблоком",
+          "chunk_type": "text",
+          "distance": 0.347817434646125
+        },
+        {
+          "article_title": "Assassin's Creed: Тайный крестовый поход",
+          "section_path": "Assassin's Creed: Тайный крестовый поход > Cюжет > Часть первая > 7",
+          "chunk_type": "text",
+          "distance": 0.3541125551121218
+        },
+        {
+          "article_title": "Андре Болден",
+          "section_path": "Андре Болден > Биография > Работа с Бергом",
+          "chunk_type": "text",
+          "distance": 0.35446638802882424
+        },
+        {
+          "article_title": "Арбааз Мир",
+          "section_path": "Арбааз Мир > Биография > Погоня за Частицами Эдема",
+          "chunk_type": "text",
+          "distance": 0.3655382350193124
+        }
+      ],
+      "typo_fixed": null,
+      "unexpected_correction": false,
+      "answer": null,
+      "facts_found": null,
+      "facts_missing": null,
+      "forbidden_found": null,
+      "refusal_ok": null,
+      "error": null
+    },
+    {
+      "id": "rel-abbas-altair",
+      "type": "relation",
+      "question": "Кем Аббас Софиан приходился Альтаиру?",
+      "corrected_question": "Кем Аббас Софиан приходился Альтаиру?",
+      "rewritten_question": null,
+      "hit": true,
+      "rank": 1,
+      "best_distance": 0.19718820056784914,
+      "top5": [
+        {
+          "article_title": "Аббас Софиан",
+          "section_path": "Аббас Софиан > Биография > Детство и молодость",
+          "chunk_type": "text",
+          "distance": 0.19718820056784914
+        },
+        {
+          "article_title": "Аббас Софиан",
+          "section_path": "Аббас Софиан",
+          "chunk_type": "text",
+          "distance": 0.20097786448461696
+        },
+        {
+          "article_title": "Аббас Софиан",
+          "section_path": "Аббас Софиан > Последние слова",
+          "chunk_type": "text",
+          "distance": 0.20591751799586555
+        },
+        {
+          "article_title": "Ахмад Софиан",
+          "section_path": "Ахмад Софиан > Биография",
+          "chunk_type": "text",
+          "distance": 0.2065117066724368
+        },
+        {
+          "article_title": "Аббас Софиан",
+          "section_path": "Аббас Софиан",
+          "chunk_type": "infobox",
+          "distance": 0.21066724113032753
+        }
+      ],
+      "typo_fixed": null,
+      "unexpected_correction": false,
+      "answer": null,
+      "facts_found": null,
+      "facts_missing": null,
+      "forbidden_found": null,
+      "refusal_ok": null,
+      "error": null
+    },
+    {
+      "id": "rel-almualim-altair",
+      "type": "relation",
+      "question": "Какую роль Аль-Муалим сыграл в жизни Альтаира?",
+      "corrected_question": "Какую роль Аль-Муалим сыграл в жизни Альтаира?",
+      "rewritten_question": null,
+      "hit": true,
+      "rank": 1,
+      "best_distance": 0.23948134660218579,
+      "top5": [
+        {
+          "article_title": "Аль-Муалим",
+          "section_path": "Аль-Муалим",
+          "chunk_type": "text",
+          "distance": 0.23948134660218579
+        },
+        {
+          "article_title": "Аль-Муалим",
+          "section_path": "Аль-Муалим > Последние слова",
+          "chunk_type": "text",
+          "distance": 0.2512907672040331
+        },
+        {
+          "article_title": "Альтаир ибн Ла-Ахад",
+          "section_path": "Альтаир ибн Ла-Ахад > Биография > После гибели Аль-Муалима",
+          "chunk_type": "text",
+          "distance": 0.25185477100059805
+        },
+        {
+          "article_title": "Аль-Муалим",
+          "section_path": "Аль-Муалим > Биография > Предательство Хараса",
+          "chunk_type": "text",
+          "distance": 0.25192986692477226
+        },
+        {
+          "article_title": "Ассасины",
+          "section_path": "Ассасины > История > Эпоха Крестовых походов",
+          "chunk_type": "text",
+          "distance": 0.2520124240452305
+        }
+      ],
+      "typo_fixed": null,
+      "unexpected_correction": false,
+      "answer": null,
+      "facts_found": null,
+      "facts_missing": null,
+      "forbidden_found": null,
+      "refusal_ok": null,
+      "error": null
+    },
+    {
+      "id": "rel-abstergo-templars",
+      "type": "relation",
+      "question": "Как связаны Абстерго Индастриз и тамплиеры?",
+      "corrected_question": "Как связаны Абстерго Индастриз и тамплиеры?",
+      "rewritten_question": null,
+      "hit": true,
+      "rank": 3,
+      "best_distance": 0.20999824683425117,
+      "top5": [
+        {
+          "article_title": "Абстерго Индастриз",
+          "section_path": "Абстерго Индастриз",
+          "chunk_type": "text",
+          "distance": 0.20999824683425117
+        },
+        {
+          "article_title": "Абстерго Индастриз",
+          "section_path": "Абстерго Индастриз",
+          "chunk_type": "infobox",
+          "distance": 0.22951747446407833
+        },
+        {
+          "article_title": "Абстерго Индастриз",
+          "section_path": "Абстерго Индастриз > История > Основание компании. Первые шаги",
+          "chunk_type": "text",
+          "distance": 0.24707928652672517
+        },
+        {
+          "article_title": "Абстерго Индастриз",
+          "section_path": "Абстерго Индастриз > Интересные факты",
+          "chunk_type": "text",
+          "distance": 0.24808194625622537
+        },
+        {
+          "article_title": "Абстерго Индастриз",
+          "section_path": "Абстерго Индастриз > Известные сотрудники > Бывшие",
+          "chunk_type": "text",
+          "distance": 0.25180329405324064
+        }
+      ],
+      "typo_fixed": null,
+      "unexpected_correction": false,
+      "answer": null,
+      "facts_found": null,
+      "facts_missing": null,
+      "forbidden_found": null,
+      "refusal_ok": null,
+      "error": null
+    },
+    {
+      "id": "rel-robert-de-sable",
+      "type": "relation",
+      "question": "Кто такой Робер де Сабле?",
+      "corrected_question": "Кто такой Робер де Сабле?",
+      "rewritten_question": null,
+      "hit": true,
+      "rank": 1,
+      "best_distance": 0.33030654220367694,
+      "top5": [
+        {
+          "article_title": "Арсуф",
+          "section_path": "Арсуф > История > Третий крестовый поход",
+          "chunk_type": "text",
+          "distance": 0.33030654220367694
+        },
+        {
+          "article_title": "Альтаир ибн Ла-Ахад",
+          "section_path": "Альтаир ибн Ла-Ахад > Биография > Погоня за Яблоком",
+          "chunk_type": "text",
+          "distance": 0.3637911618817554
+        },
+        {
+          "article_title": "Арман Бушар",
+          "section_path": "Арман Бушар",
+          "chunk_type": "text",
+          "distance": 0.37682300345047137
+        },
+        {
+          "article_title": "Альтаир ибн Ла-Ахад",
+          "section_path": "Альтаир ибн Ла-Ахад > Биография > Погоня за Яблоком",
+          "chunk_type": "text",
+          "distance": 0.3893781489604333
+        },
+        {
+          "article_title": "Арсуф",
+          "section_path": "Арсуф",
+          "chunk_type": "infobox",
+          "distance": 0.39601383910509913
+        }
+      ],
+      "typo_fixed": null,
+      "unexpected_correction": false,
+      "answer": null,
+      "facts_found": null,
+      "facts_missing": null,
+      "forbidden_found": null,
+      "refusal_ok": null,
+      "error": null
+    },
+    {
+      "id": "typo-altair",
+      "type": "typo",
+      "question": "Кто такой Альтарир?",
+      "corrected_question": "Кто такой альтаир?",
+      "rewritten_question": null,
+      "hit": true,
+      "rank": 1,
+      "best_distance": 0.22670582238355075,
+      "top5": [
+        {
+          "article_title": "Альтаир ибн Ла-Ахад",
+          "section_path": "Альтаир ибн Ла-Ахад",
+          "chunk_type": "text",
+          "distance": 0.22670582238355075
+        },
+        {
+          "article_title": "Альтаир ибн Ла-Ахад",
+          "section_path": "Альтаир ибн Ла-Ахад > Интересные факты",
+          "chunk_type": "text",
+          "distance": 0.2431452135228167
+        },
+        {
+          "article_title": "Альтаир ибн Ла-Ахад",
+          "section_path": "Альтаир ибн Ла-Ахад",
+          "chunk_type": "infobox",
+          "distance": 0.2537373434483047
+        },
+        {
+          "article_title": "Альтаир ибн Ла-Ахад",
+          "section_path": "Альтаир ибн Ла-Ахад > Интересные факты",
+          "chunk_type": "text",
+          "distance": 0.26720664068171807
+        },
+        {
+          "article_title": "Альтаир ибн Ла-Ахад",
+          "section_path": "Альтаир ибн Ла-Ахад > Личность и характеристика",
+          "chunk_type": "text",
+          "distance": 0.26856922493818114
+        }
+      ],
+      "typo_fixed": true,
+      "unexpected_correction": null,
+      "answer": null,
+      "facts_found": null,
+      "facts_missing": null,
+      "forbidden_found": null,
+      "refusal_ok": null,
+      "error": null
+    },
+    {
+      "id": "typo-ezio",
+      "type": "typo",
+      "question": "Кто такой Эцоо Аудиторе?",
+      "corrected_question": "Кто такой Эцоо Аудиторе?",
+      "rewritten_question": null,
+      "hit": true,
+      "rank": 1,
+      "best_distance": 0.25840968650040863,
+      "top5": [
+        {
+          "article_title": "Эцио Аудиторе да Фиренце",
+          "section_path": "Эцио Аудиторе да Фиренце",
+          "chunk_type": "text",
+          "distance": 0.25840968650040863
+        },
+        {
+          "article_title": "Эцио Аудиторе да Фиренце",
+          "section_path": "Эцио Аудиторе да Фиренце > Интересные факты",
+          "chunk_type": "text",
+          "distance": 0.2686563810864626
+        },
+        {
+          "article_title": "Assassin's Creed II",
+          "section_path": "Assassin's Creed II > Сюжет",
+          "chunk_type": "text",
+          "distance": 0.2719385812532482
+        },
+        {
+          "article_title": "Эцио Аудиторе да Фиренце",
+          "section_path": "Эцио Аудиторе да Фиренце",
+          "chunk_type": "infobox",
+          "distance": 0.27297853875058586
+        },
+        {
+          "article_title": "Эцио Аудиторе да Фиренце",
+          "section_path": "Эцио Аудиторе да Фиренце > Интересные факты",
+          "chunk_type": "text",
+          "distance": 0.27603426427802635
+        }
+      ],
+      "typo_fixed": false,
+      "unexpected_correction": null,
+      "answer": null,
+      "facts_found": null,
+      "facts_missing": null,
+      "forbidden_found": null,
+      "refusal_ok": null,
+      "error": null
+    },
+    {
+      "id": "typo-abstergo",
+      "type": "typo",
+      "question": "Расскажи про Абстэрго",
+      "corrected_question": "Расскажи про абстерго",
+      "rewritten_question": null,
+      "hit": true,
+      "rank": 1,
+      "best_distance": 0.23622822004394672,
+      "top5": [
+        {
+          "article_title": "Абстерго Индастриз",
+          "section_path": "Абстерго Индастриз > Проекты > Продукция",
+          "chunk_type": "text",
+          "distance": 0.23622822004394672
+        },
+        {
+          "article_title": "Абстерго Индастриз",
+          "section_path": "Абстерго Индастриз > Интересные факты",
+          "chunk_type": "text",
+          "distance": 0.24175881993111814
+        },
+        {
+          "article_title": "Абстерго (воспоминание)",
+          "section_path": "Абстерго (воспоминание)",
+          "chunk_type": "text",
+          "distance": 0.24549341713384465
+        },
+        {
+          "article_title": "Абстерго Индастриз",
+          "section_path": "Абстерго Индастриз",
+          "chunk_type": "text",
+          "distance": 0.2477564075353067
+        },
+        {
+          "article_title": "Абстерго (воспоминание)",
+          "section_path": "Абстерго (воспоминание)",
+          "chunk_type": "infobox",
+          "distance": 0.2478115417000727
+        }
+      ],
+      "typo_fixed": true,
+      "unexpected_correction": null,
+      "answer": null,
+      "facts_found": null,
+      "facts_missing": null,
+      "forbidden_found": null,
+      "refusal_ok": null,
+      "error": null
+    },
+    {
+      "id": "typo-almualim",
+      "type": "typo",
+      "question": "Кто такой Аль-Мулим?",
+      "corrected_question": "Кто такой аль-муалим?",
+      "rewritten_question": null,
+      "hit": true,
+      "rank": 1,
+      "best_distance": 0.20794160832684339,
+      "top5": [
+        {
+          "article_title": "Аль-Муалим",
+          "section_path": "Аль-Муалим",
+          "chunk_type": "text",
+          "distance": 0.20794160832684339
+        },
+        {
+          "article_title": "Аль-Муалим",
+          "section_path": "Аль-Муалим",
+          "chunk_type": "infobox",
+          "distance": 0.22952572479101618
+        },
+        {
+          "article_title": "Аль-Муалим",
+          "section_path": "Аль-Муалим > Последние слова",
+          "chunk_type": "text",
+          "distance": 0.25608249798297056
+        },
+        {
+          "article_title": "Аль-Муалим",
+          "section_path": "Аль-Муалим > Интересные факты",
+          "chunk_type": "text",
+          "distance": 0.261506372916984
+        },
+        {
+          "article_title": "Наставник",
+          "section_path": "Наставник > История",
+          "chunk_type": "text",
+          "distance": 0.27215549415089646
+        }
+      ],
+      "typo_fixed": true,
+      "unexpected_correction": null,
+      "answer": null,
+      "facts_found": null,
+      "facts_missing": null,
+      "forbidden_found": null,
+      "refusal_ok": null,
+      "error": null
+    },
+    {
+      "id": "followup-ahmet-killer",
+      "type": "followup",
+      "question": "Кто его убил?",
+      "corrected_question": "Кто его убил?",
+      "rewritten_question": "Кто убил принца Ахмета?",
+      "hit": true,
+      "rank": 3,
+      "best_distance": 0.24024995719459274,
+      "top5": [
+        {
+          "article_title": "Ахмет",
+          "section_path": "Ахмет",
+          "chunk_type": "text",
+          "distance": 0.24024995719459274
+        },
+        {
+          "article_title": "Ахмет",
+          "section_path": "Ахмет",
+          "chunk_type": "infobox",
+          "distance": 0.25982179497851055
+        },
+        {
+          "article_title": "Ахмет",
+          "section_path": "Ахмет > Биография > Смерть",
+          "chunk_type": "text",
+          "distance": 0.2606766054866221
+        },
+        {
+          "article_title": "Ахмет",
+          "section_path": "Ахмет > Последние слова",
+          "chunk_type": "text",
+          "distance": 0.2748337586396815
+        },
+        {
+          "article_title": "Ахмет",
+          "section_path": "Ахмет > Личность и характеристики",
+          "chunk_type": "text",
+          "distance": 0.3133888204962355
+        }
+      ],
+      "typo_fixed": null,
+      "unexpected_correction": false,
+      "answer": null,
+      "facts_found": null,
+      "facts_missing": null,
+      "forbidden_found": null,
+      "refusal_ok": null,
+      "error": null
+    },
+    {
+      "id": "followup-altair-birthplace",
+      "type": "followup",
+      "question": "Где он родился?",
+      "corrected_question": "Где он родился?",
+      "rewritten_question": "Где родился Альтаир ибн Ла-Ахад?",
+      "hit": true,
+      "rank": 2,
+      "best_distance": 0.2254639589540003,
+      "top5": [
+        {
+          "article_title": "Альтаир ибн Ла-Ахад",
+          "section_path": "Альтаир ибн Ла-Ахад",
+          "chunk_type": "text",
+          "distance": 0.2254639589540003
+        },
+        {
+          "article_title": "Альтаир ибн Ла-Ахад",
+          "section_path": "Альтаир ибн Ла-Ахад > Биография > Детство и юность",
+          "chunk_type": "text",
+          "distance": 0.22687053398202428
+        },
+        {
+          "article_title": "Альтаир ибн Ла-Ахад",
+          "section_path": "Альтаир ибн Ла-Ахад",
+          "chunk_type": "infobox",
+          "distance": 0.23020061891376864
+        },
+        {
+          "article_title": "Альтаир ибн Ла-Ахад",
+          "section_path": "Альтаир ибн Ла-Ахад > Интересные факты",
+          "chunk_type": "text",
+          "distance": 0.2745937727522819
+        },
+        {
+          "article_title": "Альтаир ибн Ла-Ахад",
+          "section_path": "Альтаир ибн Ла-Ахад > Биография > Нападение на Масиаф",
+          "chunk_type": "text",
+          "distance": 0.2796299974018792
+        }
+      ],
+      "typo_fixed": null,
+      "unexpected_correction": false,
+      "answer": null,
+      "facts_found": null,
+      "facts_missing": null,
+      "forbidden_found": null,
+      "refusal_ok": null,
+      "error": null
+    },
+    {
+      "id": "followup-kassandra-exile",
+      "type": "followup",
+      "question": "Почему её изгнали из Спарты?",
+      "corrected_question": "Почему её изгнали из Спарты?",
+      "rewritten_question": "Почему Кассандру изгнали из Спарты?",
+      "hit": true,
+      "rank": 1,
+      "best_distance": 0.18956243205435497,
+      "top5": [
+        {
+          "article_title": "Кассандра",
+          "section_path": "Кассандра > Биография > Ранние годы > Изгнание из Спарты",
+          "chunk_type": "text",
+          "distance": 0.18956243205435497
+        },
+        {
+          "article_title": "Кассандра",
+          "section_path": "Кассандра > Биография > Охота на Культ Космоса > Убийство царя Спарты",
+          "chunk_type": "text",
+          "distance": 0.24694074814028755
+        },
+        {
+          "article_title": "Кассандра",
+          "section_path": "Кассандра > Биография > Охота на Культ Космоса > Возвращение в Спарту",
+          "chunk_type": "text",
+          "distance": 0.2584946262851132
+        },
+        {
+          "article_title": "Кассандра",
+          "section_path": "Кассандра > Биография > Охота на Культ Космоса > Убийство царя Спарты",
+          "chunk_type": "text",
+          "distance": 0.2613902663680102
+        },
+        {
+          "article_title": "Кассандра",
+          "section_path": "Кассандра > Биография > Охота на Культ Космоса > Возвращение в Спарту",
+          "chunk_type": "text",
+          "distance": 0.261623776875473
+        }
+      ],
+      "typo_fixed": null,
+      "unexpected_correction": false,
+      "answer": null,
+      "facts_found": null,
+      "facts_missing": null,
+      "forbidden_found": null,
+      "refusal_ok": null,
+      "error": null
+    },
+    {
+      "id": "oos-article-count-ac",
+      "type": "out_of_scope",
+      "question": "Сколько статей в базе по Assassin's Creed?",
+      "corrected_question": "Сколько статей в базе по Assassin's Creed?",
+      "rewritten_question": null,
+      "hit": null,
+      "rank": null,
+      "best_distance": 0.2563163068396572,
+      "top5": [
+        {
+          "article_title": "Assassin's Creed (серия)",
+          "section_path": "Assassin's Creed (серия) > Ссылки",
+          "chunk_type": "text",
+          "distance": 0.2563163068396572
+        },
+        {
+          "article_title": "72",
+          "section_path": "72 > Интересные факты",
+          "chunk_type": "text",
+          "distance": 0.2615257896267511
+        },
+        {
+          "article_title": "Assassin's Creed Wiki",
+          "section_path": "Assassin's Creed Wiki",
+          "chunk_type": "text",
+          "distance": 0.2640219054297359
+        },
+        {
+          "article_title": "Assassin's Creed (энциклопедия)",
+          "section_path": "Assassin's Creed (энциклопедия)",
+          "chunk_type": "text",
+          "distance": 0.268803309441612
+        },
+        {
+          "article_title": "Assassin's Creed: Initiates",
+          "section_path": "Assassin's Creed: Initiates > Восстановление Базы Данных",
+          "chunk_type": "text",
+          "distance": 0.27125736104669407
+        }
+      ],
+      "typo_fixed": null,
+      "unexpected_correction": false,
+      "answer": null,
+      "facts_found": null,
+      "facts_missing": null,
+      "forbidden_found": null,
+      "refusal_ok": null,
+      "error": null
+    },
+    {
+      "id": "oos-article-count",
+      "type": "out_of_scope",
+      "question": "Сколько статей?",
+      "corrected_question": "Сколько статей?",
+      "rewritten_question": null,
+      "hit": null,
+      "rank": null,
+      "best_distance": 0.33001850407092126,
+      "top5": [
+        {
+          "article_title": "Assassin's Creed Wiki",
+          "section_path": "Assassin's Creed Wiki",
+          "chunk_type": "text",
+          "distance": 0.33001850407092126
+        },
+        {
+          "article_title": "72",
+          "section_path": "72 > Интересные факты",
+          "chunk_type": "text",
+          "distance": 0.33609415790713193
+        },
+        {
+          "article_title": "Assassin's Creed (серия)",
+          "section_path": "Assassin's Creed (серия) > Ссылки",
+          "chunk_type": "text",
+          "distance": 0.353314739037764
+        },
+        {
+          "article_title": "72",
+          "section_path": "72 > Интересные факты",
+          "chunk_type": "text",
+          "distance": 0.35785678021279754
+        },
+        {
+          "article_title": "Assassin's Creed: Восстание",
+          "section_path": "Assassin's Creed: Восстание > Ссылки",
+          "chunk_type": "text",
+          "distance": 0.3600286668126136
+        }
+      ],
+      "typo_fixed": null,
+      "unexpected_correction": false,
+      "answer": null,
+      "facts_found": null,
+      "facts_missing": null,
+      "forbidden_found": null,
+      "refusal_ok": null,
+      "error": null
+    },
+    {
+      "id": "oos-geralt",
+      "type": "out_of_scope",
+      "question": "Кто такой Геральт из Ривии?",
+      "corrected_question": "Кто такой гера из Ривии?",
+      "rewritten_question": null,
+      "hit": null,
+      "rank": null,
+      "best_distance": 0.3529404348650177,
+      "top5": [
+        {
+          "article_title": "База данных/Люди (Вальгалла)",
+          "section_path": "База данных/Люди (Вальгалла)",
+          "chunk_type": "text",
+          "distance": 0.3529404348650177
+        },
+        {
+          "article_title": "База данных/Люди (Вальгалла)",
+          "section_path": "База данных/Люди (Вальгалла)",
+          "chunk_type": "text",
+          "distance": 0.3752776455716389
+        },
+        {
+          "article_title": "База данных/Люди (Вальгалла)",
+          "section_path": "База данных/Люди (Вальгалла)",
+          "chunk_type": "text",
+          "distance": 0.37551052973722354
+        },
+        {
+          "article_title": "База данных/Люди (Вальгалла)",
+          "section_path": "База данных/Люди (Вальгалла)",
+          "chunk_type": "text",
+          "distance": 0.37588379174376707
+        },
+        {
+          "article_title": "Аспасия",
+          "section_path": "Аспасия",
+          "chunk_type": "text",
+          "distance": 0.3822209043718182
+        }
+      ],
+      "typo_fixed": null,
+      "unexpected_correction": true,
+      "answer": null,
+      "facts_found": null,
+      "facts_missing": null,
+      "forbidden_found": null,
+      "refusal_ok": null,
+      "error": null
+    },
+    {
+      "id": "oos-weather",
+      "type": "out_of_scope",
+      "question": "Какая сегодня погода в Ташкенте?",
+      "corrected_question": "Какая сегодня погода в Ташкенте?",
+      "rewritten_question": null,
+      "hit": null,
+      "rank": null,
+      "best_distance": 0.46364324354011444,
+      "top5": [
+        {
+          "article_title": "Дезмонд Майлс",
+          "section_path": "Дезмонд Майлс > Биография > Жизнь в Нью-Йорке",
+          "chunk_type": "text",
+          "distance": 0.46364324354011444
+        },
+        {
+          "article_title": "Assassin's Creed: Project Legacy",
+          "section_path": "Assassin's Creed: Project Legacy > Воспоминания > Рим > Часть 4: Джованни Борджиа",
+          "chunk_type": "text",
+          "distance": 0.4714423493558004
+        },
+        {
+          "article_title": "Кассандра",
+          "section_path": "Кассандра > Биография > Борьба с Орденом Древних > Уничтожение \"Бури\" и её флота",
+          "chunk_type": "text",
+          "distance": 0.47635741207226423
+        },
+        {
+          "article_title": "In bocca al lupo",
+          "section_path": "In bocca al lupo > Интересные факты",
+          "chunk_type": "text",
+          "distance": 0.4766331341431056
+        },
+        {
+          "article_title": "Assassin's Creed. Тамплиеры: Крест войны",
+          "section_path": "Assassin's Creed. Тамплиеры: Крест войны",
+          "chunk_type": "infobox",
+          "distance": 0.4772013360874373
+        }
+      ],
+      "typo_fixed": null,
+      "unexpected_correction": false,
+      "answer": null,
+      "facts_found": null,
+      "facts_missing": null,
+      "forbidden_found": null,
+      "refusal_ok": null,
+      "error": null
+    },
+    {
+      "id": "oos-worldcup",
+      "type": "out_of_scope",
+      "question": "Кто выиграл чемпионат мира по футболу в 2018 году?",
+      "corrected_question": "Кто выиграл чемпиона мира по футболу в 2018 году?",
+      "rewritten_question": null,
+      "hit": null,
+      "rank": null,
+      "best_distance": 0.4662809754032886,
+      "top5": [
+        {
+          "article_title": "База данных/Люди (Синдикат)",
+          "section_path": "База данных/Люди (Синдикат) > Первая мировая война",
+          "chunk_type": "text",
+          "distance": 0.4662809754032886
+        },
+        {
+          "article_title": "Кассандра",
+          "section_path": "Кассандра > Биография > Охота на Культ Космоса > Празднование победы над Культом",
+          "chunk_type": "text",
+          "distance": 0.46859042465952616
+        },
+        {
+          "article_title": "Афинский акрополь (Интерактивный тур)",
+          "section_path": "Афинский акрополь (Интерактивный тур) > Завершение тура",
+          "chunk_type": "text",
+          "distance": 0.4716578030544505
+        },
+        {
+          "article_title": "Assassin's Creed Chronicles: Россия",
+          "section_path": "Assassin's Creed Chronicles: Россия",
+          "chunk_type": "text",
+          "distance": 0.4781680031254206
+        },
+        {
+          "article_title": "Assassin's Creed: Одиссея",
+          "section_path": "Assassin's Creed: Одиссея",
+          "chunk_type": "text",
+          "distance": 0.4781713495156499
+        }
+      ],
+      "typo_fixed": null,
+      "unexpected_correction": true,
+      "answer": null,
+      "facts_found": null,
+      "facts_missing": null,
+      "forbidden_found": null,
+      "refusal_ok": null,
+      "error": null
+    }
+  ]
+}

@@ -1,0 +1,319 @@
+# Eval-набор: контрольные вопросы с эталонами для universe=AC.
+#
+# Каждый expected_fact сверен с реальным chunk_text в БД на момент написания —
+# эталоны описывают то, что лежит в корпусе, а не «правду про AC вообще».
+# article_title — как в БД (после резолва редиректов): «Эцио Аудиторе да Фиренце»,
+# «Дезмонд Майлс», не «Эцио Аудиторе» / «Майлз».
+#
+# Типы:
+#   fact          точечный факт (инфобокс или первый раздел биографии)
+#   narrative     событие, текстовые чанки — проверяет merge/split чанкера
+#   relation      связь двух сущностей — эталон может быть в любой из двух статей
+#   typo          намеренная опечатка в имени — проверяет correct_typos (pg_trgm)
+#   followup      местоимение + history — проверяет rewrite_query
+#   out_of_scope  бот должен отказаться, не выдумать
+#
+# expected_sources — СПИСОК; hit, если в top-k есть чанк, совпавший с ЛЮБЫМ из них.
+#   article_title     обязательно
+#   section_contains  подстрока section_path (необязательно)
+#   chunk_type        text | infobox (необязательно; у инфобокса section_path ==
+#                     названию статьи, поэтому section_contains его не выделит)
+# expected_facts — все подстроки должны встретиться в ответе (регистр и ё/е не важны).
+
+universe: AC
+k: 5
+
+questions:
+
+  # ---------------------------------------------------------------- fact
+
+  - id: fact-ezio-birth
+    type: fact
+    question: "Когда родился Эцио Аудиторе?"
+    expected_sources:
+      - { article_title: "Эцио Аудиторе да Фиренце", chunk_type: infobox }
+      - { article_title: "Эцио Аудиторе да Фиренце", section_contains: "Детство и молодость" }
+    expected_facts: ["1459"]
+    notes: "инфобокс «ДР: 24 июня 1459», биография «родился 24 июня 1459»"
+
+  - id: fact-altair-birthplace
+    type: fact
+    question: "Где родился Альтаир?"
+    expected_sources:
+      - { article_title: "Альтаир ибн Ла-Ахад", chunk_type: infobox }
+      - { article_title: "Альтаир ибн Ла-Ахад", section_contains: "Детство и юность" }
+    expected_facts: ["Масиаф"]
+    notes: "«Альтаир родился в Масиафе, в 1165 году»"
+
+  - id: fact-altair-birthyear
+    type: fact
+    question: "В каком году родился Альтаир ибн Ла-Ахад?"
+    expected_sources:
+      - { article_title: "Альтаир ибн Ла-Ахад", chunk_type: infobox }
+      - { article_title: "Альтаир ибн Ла-Ахад", section_contains: "Детство и юность" }
+    expected_facts: ["1165"]
+
+  - id: fact-bayek-birthplace
+    type: fact
+    question: "Где родился Байек?"
+    expected_sources:
+      - { article_title: "Байек", chunk_type: infobox }
+      - { article_title: "Байек", section_contains: "Молодость в Сиве" }
+    expected_facts: ["Сив"]
+    notes: "«родился в оазисе Сива»; стем «Сив» покрывает Сива/Сиве"
+
+  - id: fact-kassandra-birthplace
+    type: fact
+    question: "Где родилась Кассандра?"
+    expected_sources:
+      - { article_title: "Кассандра", chunk_type: infobox }
+      - { article_title: "Кассандра", section_contains: "Детство" }
+    expected_facts: ["Спарт"]
+
+  - id: fact-desmond-birthplace
+    type: fact
+    question: "Где родился Дезмонд Майлс?"
+    expected_sources:
+      - { article_title: "Дезмонд Майлс", section_contains: "Детство" }
+    expected_facts: ["Дакот"]
+    notes: "«недалеко от Блэк-Хиллс, к западу от Рапид-Сити, в штате Южная Дакота»"
+
+  - id: fact-ahmet-killer
+    type: fact
+    question: "Кто убил принца Ахмета?"
+    expected_sources:
+      - { article_title: "Ахмет", section_contains: "Смерть" }
+    expected_facts: ["Селим"]
+    notes: "«Селим ... скидывает Ахмета в пропасть»"
+
+  - id: fact-ahmet-homeland
+    type: fact
+    question: "Откуда родом принц Ахмет?"
+    expected_sources:
+      - { article_title: "Ахмет", chunk_type: infobox }
+    expected_facts: ["Амась"]
+    notes: "инфобокс «Родина: Амасья, Османская империя»; стем — ответ был «из Амасьи»"
+
+  # ---------------------------------------------------------------- narrative
+
+  - id: narr-masyaf-1189
+    type: narrative
+    question: "Что произошло при нападении на Масиаф в 1189 году?"
+    expected_sources:
+      - { article_title: "Альтаир ибн Ла-Ахад", section_contains: "Нападение на Масиаф" }
+    expected_facts: ["тамплиер"]
+
+  - id: narr-altair-death
+    type: narrative
+    question: "Как умер Альтаир?"
+    expected_sources:
+      - { article_title: "Альтаир ибн Ла-Ахад", section_contains: "Смерть Альтаира" }
+    expected_facts: ["1257", "Масиаф"]
+    notes: >
+      «В 1257 году на Масиаф напали монголы...». «монгол» из эталона убран: это
+      фон, а не ответ на «как умер» — модель то упоминала осаду, то нет, и оба
+      раза отвечала верно (запёрся в библиотеке, спрятал Яблоко, умер).
+
+  - id: narr-bayek-medjay
+    type: narrative
+    question: "Как Байек стал последним Меджаем?"
+    expected_sources:
+      - { article_title: "Байек", section_contains: "Становление последним Меджаем" }
+    expected_facts: ["Сабу", "Бион"]
+    notes: "отец Сабу убит наёмником Бионом; Байек позже убил Биона"
+
+  - id: narr-kassandra-exile
+    type: narrative
+    question: "Почему Кассандру изгнали из Спарты?"
+    expected_sources:
+      - { article_title: "Кассандра", section_contains: "Изгнание из Спарты" }
+    expected_facts: ["Алексиос", "Николаос"]
+    notes: "столкнула священника и Алексиоса со скалы; Николаос сбросил её в пропасть"
+
+  - id: narr-khemu-death
+    type: narrative
+    question: "Как погиб Хему, сын Байека?"
+    expected_sources:
+      - { article_title: "Байек", section_contains: "Смерть Хему" }
+    expected_facts: ["маск", "Амон"]
+    notes: "люди в масках в храме Амона; нож Байека непреднамеренно ударил Хему"
+
+  - id: narr-ahmet-templars
+    type: narrative
+    question: "Как Ахмет вступил в Орден тамплиеров?"
+    expected_sources:
+      - { article_title: "Ахмет", section_contains: "Вступление в Орден" }
+    expected_facts: ["Мануил", "византий"]
+    notes: >
+      «византийские тамплиеры во главе с Мануилом Палеологом ... Ахмет решается вступить
+      в Орден». Год 1509 из эталона убран: он в чанке есть, но это контекст, а не ответ
+      на «как вступил» — модель его закономерно опустила, и это не ошибка.
+
+  - id: narr-solomon-temple
+    type: narrative
+    question: "Что произошло в храме Соломона?"
+    expected_sources:
+      - { article_title: "Assassin's Creed", section_contains: "Сюжет" }
+      - { article_title: "Assassin's Creed: Тайный крестовый поход" }
+    expected_facts: ["Робер", "артефакт"]
+    notes: >
+      Вопрос-подсказка из SUGGESTIONS фронтенда. Отдельной статьи про храм нет —
+      факт живёт в сюжете игры: «найти гробницу в Храме Соломона и добыть артефакт...
+      уничтожить Робера де Сабле... проваливает задание».
+
+  # ---------------------------------------------------------------- relation
+
+  - id: rel-abbas-altair
+    type: relation
+    question: "Кем Аббас Софиан приходился Альтаиру?"
+    expected_sources:
+      - { article_title: "Аббас Софиан" }
+      - { article_title: "Альтаир ибн Ла-Ахад", section_contains: "Детство и юность" }
+    expected_facts: [["друг", "друз"]]
+    notes: "«стали друзьями» в чанке, «лучшим другом» в ответе — общей подстроки нет, отсюда синонимы"
+
+  - id: rel-almualim-altair
+    type: relation
+    question: "Какую роль Аль-Муалим сыграл в жизни Альтаира?"
+    expected_sources:
+      - { article_title: "Аль-Муалим" }
+      - { article_title: "Альтаир ибн Ла-Ахад" }
+    expected_facts: ["наставник", "учител"]
+    notes: "lead Аль-Муалима: «наставник Братства ассасинов, а также учитель Альтаира»"
+
+  - id: rel-abstergo-templars
+    type: relation
+    question: "Как связаны Абстерго Индастриз и тамплиеры?"
+    expected_sources:
+      - { article_title: "Абстерго Индастриз", section_contains: "История" }
+    expected_facts: ["тамплиер", "1937"]
+    notes: "«официально основана в 1937-м году ... создана тамплиерами»"
+
+  - id: rel-robert-de-sable
+    type: relation
+    question: "Кто такой Робер де Сабле?"
+    expected_sources:
+      - { article_title: "Арсуф" }
+      - { article_title: "Альтаир ибн Ла-Ахад", section_contains: "Погоня за Яблоком" }
+      - { article_title: "Альтаир ибн Ла-Ахад", section_contains: "Девять целей" }
+      - { article_title: "Аль-Муалим", section_contains: "Смерть" }
+      - { article_title: "Assassin's Creed", section_contains: "Сюжет" }
+      - { article_title: "Assassin's Creed: Bloodlines", section_contains: "Сюжет" }
+      - { article_title: "Assassin's Creed (мобильная игра)", section_contains: "Сюжет" }
+    expected_facts: ["тамплиер"]
+    notes: >
+      Вопрос-подсказка из SUGGESTIONS. Своей статьи в базе нет — сущность «размазана»
+      по 6+ статьям: Арсуф (инфобокс «Цели ассасинов: Робер де Сабле», битва 1191),
+      биография Альтаира (девятая цель), смерть Аль-Муалима, сюжеты трёх игр.
+      Первый baseline промахнулся ТОЛЬКО потому, что тут были две статьи из шести —
+      retrieval вернул Арсуф и был прав. Урок: для сущностей без своей статьи
+      эталон нужно собирать поиском по всему корпусу, а не по памяти.
+
+  # ---------------------------------------------------------------- typo
+
+  - id: typo-altair
+    type: typo
+    question: "Кто такой Альтарир?"
+    expect_corrected_to: "альтаир"
+    expected_sources:
+      - { article_title: "Альтаир ибн Ла-Ахад" }
+    expected_facts: ["ассасин"]
+    notes: "документированный кейс из ARCHITECTURE.md, сходство 0.545"
+
+  - id: typo-ezio
+    type: typo
+    question: "Кто такой Эцоо Аудиторе?"
+    expect_corrected_to: "эцио"
+    expected_sources:
+      - { article_title: "Эцио Аудиторе да Фиренце" }
+    expected_facts: ["ассасин"]
+    notes: >
+      Короткое имя (4 буквы) — триграммы на таких слабы, typo_fixed может быть false.
+      Это измерение, не баг датасета. Retrieval всё равно может попасть по «Аудиторе».
+
+  - id: typo-abstergo
+    type: typo
+    question: "Расскажи про Абстэрго"
+    expect_corrected_to: "абстерго"
+    expected_sources:
+      - { article_title: "Абстерго Индастриз" }
+    expected_facts: ["компани"]
+
+  - id: typo-almualim
+    type: typo
+    question: "Кто такой Аль-Мулим?"
+    expect_corrected_to: "муалим"
+    expected_sources:
+      - { article_title: "Аль-Муалим" }
+    expected_facts: ["наставник"]
+    notes: "дефисное имя — проверяет, что словарь держит и целое «аль-муалим», и части"
+
+  # ---------------------------------------------------------------- followup
+
+  - id: followup-ahmet-killer
+    type: followup
+    history:
+      - { role: user,      content: "Кто такой принц Ахмет?" }
+      - { role: assistant, content: "Принц Ахмет — старший сын султана Баязида II, тамплиер и претендент на трон." }
+    question: "Кто его убил?"
+    expected_sources:
+      - { article_title: "Ахмет", section_contains: "Смерть" }
+    expected_facts: ["Селим"]
+
+  - id: followup-altair-birthplace
+    type: followup
+    history:
+      - { role: user,      content: "Расскажи про Альтаира ибн Ла-Ахада" }
+      - { role: assistant, content: "Альтаир ибн Ла-Ахад — мастер-ассасин XII века, наставник Братства." }
+    question: "Где он родился?"
+    expected_sources:
+      - { article_title: "Альтаир ибн Ла-Ахад", chunk_type: infobox }
+      - { article_title: "Альтаир ибн Ла-Ахад", section_contains: "Детство и юность" }
+    expected_facts: ["Масиаф"]
+
+  - id: followup-kassandra-exile
+    type: followup
+    history:
+      - { role: user,      content: "Кто такая Кассандра?" }
+      - { role: assistant, content: "Кассандра — спартанская наёмница, героиня Assassin's Creed: Одиссея." }
+    question: "Почему её изгнали из Спарты?"
+    expected_sources:
+      - { article_title: "Кассандра", section_contains: "Изгнание из Спарты" }
+    expected_facts: ["Алексиос"]
+    notes: "«её» -> в _PRONOUNS лежит «ее», нормализация ё->е это учитывает"
+
+  # ---------------------------------------------------------------- out_of_scope
+
+  - id: oos-article-count-ac
+    type: out_of_scope
+    question: "Сколько статей в базе по Assassin's Creed?"
+    expect_refusal: true
+    forbidden_facts: ["Декларац"]
+
+  - id: oos-article-count
+    type: out_of_scope
+    question: "Сколько статей?"
+    expect_refusal: true
+    forbidden_facts: ["Декларац", "17"]
+    notes: >
+      Точное воспроизведение реального инцидента: retrieval вытащил чанк про число 72
+      с фразой «Декларация ... содержит 17 статей», и бот ответил ей. На baseline
+      refusal_ok=false — ожидаемо, это дефект, который eval должен фиксировать.
+
+  - id: oos-geralt
+    type: out_of_scope
+    question: "Кто такой Геральт из Ривии?"
+    expect_refusal: true
+    forbidden_facts: ["ведьмак", "Ривия", "Цири"]
+
+  - id: oos-weather
+    type: out_of_scope
+    question: "Какая сегодня погода в Ташкенте?"
+    expect_refusal: true
+    forbidden_facts: ["градус", "солнечн", "дожд"]
+
+  - id: oos-worldcup
+    type: out_of_scope
+    question: "Кто выиграл чемпионат мира по футболу в 2018 году?"
+    expect_refusal: true
+    forbidden_facts: ["Франц", "Хорват"]

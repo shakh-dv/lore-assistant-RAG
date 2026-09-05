@@ -41,8 +41,8 @@ class ArticleChunk(Base):
     source_url: Mapped[str] = mapped_column(String, nullable=False)
 
     # "Статья > Раздел > Подраздел" — путь до места в структуре вики, откуда
-    # взят чанк. NULL у чанков, залитых до structure-aware чанкера (ручные
-    # load_gts/load_lore/load_human).
+    # взят чанк. NULL допустим для источников без структуры разделов; сейчас
+    # его заполняют оба загрузчика — WikiChunker (Fandom) и load_gts.py.
     section_path: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
 
     # text/infobox/list — сериализованные инфобоксы и обычный текст нужно

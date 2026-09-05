@@ -5,7 +5,7 @@ split по секциям -> merge коротких -> recursive split длин�
 Чистая трансформация dict -> list[dict], без обращений к БД/сети/диску —
 поэтому domain-слой, не infrastructure.
 
-Вход — dict от FandomScraper.fetch_article (load_fandom.py): title, revid,
+Вход — dict от FandomScraper.fetch_article (fandom_scraper.py): title, revid,
 wikitext, sections, categories. sections — от MediaWiki prop=sections, поле
 byteoffset у ЭТОЙ инсталляции Fandom эмпирически ведёт себя как индекс символов
 python-строки, не байтов (проверено на живой статье "Альтаир ибн Ла-Ахад" —

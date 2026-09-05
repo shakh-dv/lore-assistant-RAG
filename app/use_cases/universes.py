@@ -6,7 +6,6 @@ from app.domain.ports import IVectorStore
 # Кода нет в словаре — отдаём сам код, ничего не выдумываем.
 UNIVERSE_TITLES: Dict[str, str] = {
     "AC": "Assassin's Creed",
-    "Human": "Люди",
 }
 
 

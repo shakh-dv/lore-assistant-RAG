@@ -26,7 +26,7 @@ from app.infrastructure.database.connection import async_session_maker
 from app.infrastructure.database.models import Article
 from app.infrastructure.gemini_adapter import DailyQuotaExceeded, GeminiAdapter
 from app.infrastructure.postgres_adapter import PostgresVectorStore
-from load_fandom import FandomScraper
+from fandom_scraper import FandomScraper
 
 UNIVERSE = "AC"
 BASE_WIKI_URL = "https://assassinscreed.fandom.com/ru/wiki/"

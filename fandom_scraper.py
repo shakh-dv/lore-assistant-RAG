@@ -31,9 +31,9 @@ BASE_URL = "https://assassinscreed.fandom.com/ru/api.php"
 
 # MediaWiki просит ставить в User-Agent контакт того, кто дёргает API.
 # HTTP-заголовки — только ASCII, кириллицу сюда класть нельзя (httpx уронит
-# UnicodeEncodeError). Поставь реальный email/ссылку на проект перед боевым
-# прогоном на всём корпусе.
-USER_AGENT = "LoreAssistantRAG/1.0 (student project; contact: set-your-email@example.com)"
+# UnicodeEncodeError). Контакт — публичный репозиторий проекта: по конвенции
+# MediaWiki подходит и URL, личный email в код не кладём.
+USER_AGENT = "LoreAssistantRAG/1.0 (student project; +https://github.com/shakh-dv/lore-assistant-RAG-)"
 
 RATE_LIMIT_SECONDS = 1.0
 MAX_ATTEMPTS = 5

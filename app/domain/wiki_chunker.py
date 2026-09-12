@@ -63,8 +63,16 @@ def _clean_wikitext(raw: str) -> str:
     (их и не должно тут остаться — инфобокс вырезается отдельно до этого вызова).
     """
     code = mwparserfromhell.parse(raw)
+    # filter_tags рекурсивный: <references group="DLC"><ref>...</ref><ref>...</ref></references>
+    # (групповые именованные сноски) даёт в списке и внешний <references>, и вложенные
+    # <ref>. Первое же remove(references) уносит вложенные ref вместе с собой из дерева —
+    # remove() на них следом не находит узел и кидает ValueError. Раз узла уже нет,
+    # цель (убрать его) и так достигнута — просто пропускаем.
     for tag in code.filter_tags(matches=lambda t: str(t.tag) in ("ref", "references")):
-        code.remove(tag)
+        try:
+            code.remove(tag)
+        except ValueError:
+            pass
     for comment in code.filter_comments():
         code.remove(comment)
     for link in code.filter_wikilinks(

@@ -8,6 +8,13 @@ WikiChunker, батчит эмбеддинги через GeminiAdapter, льё�
     uv run python index_fandom.py --title "Эцио Аудиторе"    # точечная переиндексация
     uv run python index_fandom.py --title "..." --force      # форс даже при неизменном revid
     uv run python index_fandom.py                            # полный корпус
+    uv run python index_fandom.py --resume                   # продолжить с чекпоинта
+
+Чекпоинт (index_checkpoint.json) пишется на каждую статью при полном
+прогоне (без --title) — курсор пагинации apcontinue на границу текущей
+страницы allpages (до 500 статей). --resume читает его при старте вместо
+списка с начала; удаляется сам, когда корпус пройден целиком без обрыва
+на дневном лимите.
 
 Сессия БД и commit() — на КАЖДУЮ статью, не одна на весь прогон: падение на
 статье №800 из тысяч не должно откатывать 799 уже успешно залитых.
@@ -31,6 +38,7 @@ from fandom_scraper import FandomScraper
 UNIVERSE = "AC"
 BASE_WIKI_URL = "https://assassinscreed.fandom.com/ru/wiki/"
 DRY_RUN_OUTPUT = Path("dry_run_output.jsonl")
+CHECKPOINT_FILE = Path("index_checkpoint.json")
 
 
 def _article_url(title: str) -> str:
@@ -105,7 +113,9 @@ async def _process_article(
     return "ok"
 
 
-async def index_all(limit: int | None, titles: list[str] | None, dry_run: bool, force: bool) -> None:
+async def index_all(
+    limit: int | None, titles: list[str] | None, dry_run: bool, force: bool, resume: bool
+) -> None:
     if dry_run and DRY_RUN_OUTPUT.exists():
         DRY_RUN_OUTPUT.unlink()
 
@@ -122,13 +132,24 @@ async def index_all(limit: int | None, titles: list[str] | None, dry_run: bool, 
         if titles:
             title_iter = _async_iter(titles)
         else:
-            title_iter = scraper.list_all_titles()
+            start_apcontinue = None
+            if resume and CHECKPOINT_FILE.exists():
+                start_apcontinue = json.loads(CHECKPOINT_FILE.read_text()).get("apcontinue")
+                print(f"↩️  Резюме с чекпоинта ({CHECKPOINT_FILE})")
+            title_iter = scraper.list_all_titles(start_apcontinue=start_apcontinue)
 
         i = 0
-        async for title in title_iter:
+        async for title, page_cursor in title_iter:
             if limit is not None and i >= limit:
                 break
             i += 1
+            # Курсор — на границу СТРАНИЦЫ allpages (до 500 статей), не самой
+            # статьи (см. list_all_titles) — точнее без отдельного стораджа не
+            # сделать. Пишем на каждую статью, а не раз в 500: чтобы --resume
+            # подхватил актуальный курсор, даже если упали в середине первой
+            # же страницы прогона.
+            if page_cursor is not None:
+                CHECKPOINT_FILE.write_text(json.dumps({"apcontinue": page_cursor}, ensure_ascii=False))
             print(f"\n[{i}/{limit or '?'}] {title}")
             try:
                 status = await _process_article(title, scraper, llm_client, dry_run, force)
@@ -138,12 +159,13 @@ async def index_all(limit: int | None, titles: list[str] | None, dry_run: bool, 
                 # смысла нет внутри этого прогона. Ретраить на оставшихся
                 # статьях (их могут быть тысячи) — часы впустую, ни одна не
                 # пройдёт до сброса лимита. Останавливаем прогон целиком,
-                # не считаем это ошибкой конкретной статьи: revid-скип на
-                # следующем запуске (завтра) продолжит ровно с этого места.
+                # не считаем это ошибкой конкретной статьи: revid-скип +
+                # чекпоинт (--resume) на следующем запуске продолжат ровно
+                # с этого места.
                 print(f"\n⛔ Дневной лимит Gemini API исчерпан на статье «{title}» "
                       f"({i} обработано в этом прогоне). Обработанное уже сохранено. "
                       f"Запусти снова после сброса квоты (полночь по Тихоокеанскому "
-                      f"времени) — уже загруженное пропустится через revid-скип.")
+                      f"времени) с флагом --resume — продолжит с этого места.")
                 break
             except Exception as exc:
                 # Одна проблемная статья не должна ронять весь прогон на тысячах
@@ -154,6 +176,11 @@ async def index_all(limit: int | None, titles: list[str] | None, dry_run: bool, 
                 # через `--title` позже, не автоматическим повтором здесь.
                 print(f"❌ {title}: {type(exc).__name__}: {exc}")
                 stats["error"] += 1
+        else:
+            # Цикл дошёл до конца списка статей без break (не упёрлись в дневной
+            # лимит) — корпус пройден целиком, чекпоинту дальше нечего хранить.
+            if not titles and CHECKPOINT_FILE.exists():
+                CHECKPOINT_FILE.unlink()
 
     print(f"\n--- Готово: {stats} ---")
     if dry_run:
@@ -162,7 +189,7 @@ async def index_all(limit: int | None, titles: list[str] | None, dry_run: bool, 
 
 async def _async_iter(items: list[str]):
     for item in items:
-        yield item
+        yield item, None
 
 
 def main() -> None:
@@ -171,9 +198,16 @@ def main() -> None:
     parser.add_argument("--limit", type=int, default=None, help="Ограничить число статей")
     parser.add_argument("--title", action="append", dest="titles", help="Точечная статья (можно несколько раз)")
     parser.add_argument("--force", action="store_true", help="Reindex даже при неизменном revid")
+    parser.add_argument(
+        "--resume", action="store_true",
+        help=f"Продолжить с чекпоинта в {CHECKPOINT_FILE} вместо списка статей с начала",
+    )
     args = parser.parse_args()
 
-    asyncio.run(index_all(limit=args.limit, titles=args.titles, dry_run=args.dry_run, force=args.force))
+    asyncio.run(index_all(
+        limit=args.limit, titles=args.titles, dry_run=args.dry_run,
+        force=args.force, resume=args.resume,
+    ))
 
 
 if __name__ == "__main__":

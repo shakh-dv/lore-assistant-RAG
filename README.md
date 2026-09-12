@@ -30,6 +30,11 @@ GEMINI_API_KEY=...
 DATABASE_URL=postgresql+psycopg://admin:secretpassword@localhost:5432/lore_db
 ```
 
+Запуск с тунелем в интернет
+```bash
+cloudflared tunnel --url http://localhost:8000
+```
+
 Остальное (`EMBEDDING_MODEL`, `CHAT_MODEL`, `VECTOR_DIMENSION`) имеет значения
 по умолчанию в [`app/core/config.py`](app/core/config.py).
 

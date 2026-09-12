@@ -15,3 +15,6 @@ CLAUDE.md
 
 # Отладочный вывод index_fandom.py --dry-run, регенерируется каждым прогоном
 dry_run_output.jsonl
+
+# Чекпоинт index_fandom.py --resume, локальное состояние прогона
+index_checkpoint.json

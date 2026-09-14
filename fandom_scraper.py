@@ -126,24 +126,25 @@ class FandomScraper:
         raise RuntimeError("unreachable")  # цикл всегда возвращает или кидает раньше
 
     async def list_all_titles(
-        self, start_apcontinue: Optional[str] = None
-    ) -> AsyncGenerator[tuple[str, Optional[str]], None]:
+        self, resume_from: Optional[str] = None
+    ) -> AsyncGenerator[str, None]:
         """
         Все статьи основного пространства имён (без редиректов и служебных).
-        Пагинация через apcontinue, как в CLAUDE.md. start_apcontinue — для
-        --resume в index_fandom.py, чтобы не перелистывать список с начала.
+        Пагинация — обычный проход по apcontinue из ответа MediaWiki (до 500
+        заголовков за страницу).
 
-        Каждый title отдаётся вместе с page_cursor — apcontinue, с которого
-        нужно начать, чтобы заново получить именно ЭТУ страницу allpages
-        целиком (не следующую). Курсор MediaWiki привязан к границе страницы
-        (до 500 статей), а не к конкретному заголовку — точнее чекпоинт без
-        отдельного стораджа не сделать, поэтому resume пересматривает всю
-        текущую страницу заново (дёшево — revid-скип, без Gemini).
+        resume_from — точный заголовок статьи, с которого начать (включительно,
+        через параметр apfrom MediaWiki) — для --resume в index_fandom.py.
+        В отличие от apcontinue (даёт точку только на границе страницы allpages,
+        до 500 статей), apfrom стартует ровно с нужного заголовка: --resume
+        пересматривает не всю текущую страницу заново, а максимум одну статью
+        (саму resume_from — apfrom включает её) — дёшево даже без пропуска,
+        не то что 500.
         """
-        apcontinue: Optional[str] = start_apcontinue
+        apcontinue: Optional[str] = None
+        apfrom: Optional[str] = resume_from
         fetched = 0
         while True:
-            page_cursor = apcontinue
             params = {
                 "action": "query",
                 "list": "allpages",
@@ -155,13 +156,16 @@ class FandomScraper:
             }
             if apcontinue:
                 params["apcontinue"] = apcontinue
+            elif apfrom:
+                params["apfrom"] = apfrom
 
             data = await self._get(params)
             for page in data["query"]["allpages"]:
-                yield page["title"], page_cursor
+                yield page["title"]
             fetched += len(data["query"]["allpages"])
             print(f"📄 Заголовков собрано: {fetched}...")
 
+            apfrom = None  # apfrom — только для самого первого запроса
             cont = data.get("continue")
             if not cont:
                 break
@@ -214,7 +218,7 @@ async def _smoke_test() -> None:
     """Быстрая проверка: первые 5 заголовков, одна статья целиком, одна несуществующая."""
     async with FandomScraper() as scraper:
         titles = []
-        async for title, _page_cursor in scraper.list_all_titles():
+        async for title in scraper.list_all_titles():
             titles.append(title)
             if len(titles) >= 5:
                 break

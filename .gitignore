@@ -18,3 +18,5 @@ dry_run_output.jsonl
 
 # Чекпоинт index_fandom.py --resume, локальное состояние прогона
 index_checkpoint.json
+
+.env

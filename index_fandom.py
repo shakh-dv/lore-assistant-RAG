@@ -11,10 +11,10 @@ WikiChunker, батчит эмбеддинги через GeminiAdapter, льё�
     uv run python index_fandom.py --resume                   # продолжить с чекпоинта
 
 Чекпоинт (index_checkpoint.json) пишется на каждую статью при полном
-прогоне (без --title) — курсор пагинации apcontinue на границу текущей
-страницы allpages (до 500 статей). --resume читает его при старте вместо
-списка с начала; удаляется сам, когда корпус пройден целиком без обрыва
-на дневном лимите.
+прогоне (без --title) — точный заголовок статьи (apfrom, см. fandom_scraper.py).
+--resume читает его при старте и продолжает ровно с этой статьи, не с начала
+списка и не с границы страницы allpages; удаляется сам, когда корпус пройден
+целиком без обрыва на дневном лимите.
 
 Сессия БД и commit() — на КАЖДУЮ статью, не одна на весь прогон: падение на
 статье №800 из тысяч не должно откатывать 799 уже успешно залитых.
@@ -132,24 +132,25 @@ async def index_all(
         if titles:
             title_iter = _async_iter(titles)
         else:
-            start_apcontinue = None
+            resume_from = None
             if resume and CHECKPOINT_FILE.exists():
-                start_apcontinue = json.loads(CHECKPOINT_FILE.read_text()).get("apcontinue")
-                print(f"↩️  Резюме с чекпоинта ({CHECKPOINT_FILE})")
-            title_iter = scraper.list_all_titles(start_apcontinue=start_apcontinue)
+                resume_from = json.loads(CHECKPOINT_FILE.read_text()).get("title")
+                print(f"↩️  Резюме с чекпоинта ({CHECKPOINT_FILE}): «{resume_from}»")
+            title_iter = scraper.list_all_titles(resume_from=resume_from)
 
         i = 0
-        async for title, page_cursor in title_iter:
+        async for title in title_iter:
             if limit is not None and i >= limit:
                 break
             i += 1
-            # Курсор — на границу СТРАНИЦЫ allpages (до 500 статей), не самой
-            # статьи (см. list_all_titles) — точнее без отдельного стораджа не
-            # сделать. Пишем на каждую статью, а не раз в 500: чтобы --resume
-            # подхватил актуальный курсор, даже если упали в середине первой
-            # же страницы прогона.
-            if page_cursor is not None:
-                CHECKPOINT_FILE.write_text(json.dumps({"apcontinue": page_cursor}, ensure_ascii=False))
+            # Пишем заголовок ТЕКУЩЕЙ статьи на каждую статью, не раз в 500:
+            # чтобы --resume подхватил актуальную точку, даже если упали в
+            # середине обработки. apfrom у MediaWiki включает сам заголовок,
+            # так что при следующем запуске эта статья попадётся ещё раз —
+            # дёшево (revid-скип), в отличие от старой схемы на apcontinue,
+            # которая пересматривала всю страницу целиком (до 500 статей).
+            if titles is None:
+                CHECKPOINT_FILE.write_text(json.dumps({"title": title}, ensure_ascii=False))
             print(f"\n[{i}/{limit or '?'}] {title}")
             try:
                 status = await _process_article(title, scraper, llm_client, dry_run, force)
@@ -189,7 +190,7 @@ async def index_all(
 
 async def _async_iter(items: list[str]):
     for item in items:
-        yield item, None
+        yield item
 
 
 def main() -> None:

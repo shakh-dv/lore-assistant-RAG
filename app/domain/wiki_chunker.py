@@ -17,6 +17,14 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import mwparserfromhell
 
+# Поднимать при ЛЮБОМ изменении того, что выдаёт chunk_article (очистка,
+# нарезка, формат инфобокса). Индексатор хранит версию в articles.metadata_obj
+# и перечанковывает статью при расхождении, даже если revid на вики тот же.
+# Без этого статьи, залитые старой версией, навсегда остаются с её ошибками:
+# так 200 статей, залитых до фильтра категорий/interwiki, жили с «Категория:…»
+# в тексте, потому что revid-скип их больше не трогал.
+CHUNKER_VERSION = 2
+
 # Приближение для смешанного ru/en корпуса, не точный подсчёт токенов —
 # tiktoken/langchain/sentencepiece в проекте нет и не добавляются
 # (count_tokens Gemini бьёт по сети, неприемлемо на тысячах статей).
@@ -52,6 +60,86 @@ _NON_CONTENT_LINK_PREFIXES = _FILE_LINK_PREFIXES + ("категория:", "cate
 # Реальные заголовки статей в таком виде на практике не встречаются.
 _INTERLANG_LINK_RE = re.compile(r"^[a-z]{2,3}:")
 
+# strip_code() выбрасывает <br> без разделителя: «[[Багдад]]<br>[[Самарра]]»
+# превращалось в «БагдадСамарра» (так склеились списки в 26% инфобоксов).
+# Меняем на перенос ДО парсинга — регуляркой, потому что в исходнике
+# встречается и кривой «<br/ >» и «<br/ />», которые парсер тегом не признаёт.
+# Правка под «<br/ />» (2026-10-13) меняет вывод только у трёх статей, где он
+# есть, — их перезалили через --force --title, CHUNKER_VERSION не поднимали:
+# иначе ради трёх статей пришлось бы снова проходить весь корпус.
+_BR_RE = re.compile(r"<br[\s/]*>", re.IGNORECASE)
+
+# Невидимые символы из исходника: мягкий перенос внутри слов («Во\xadсточ\xadная»),
+# zero-width/bidi-метки, BOM. Глазами их не видно, но для эмбеддинга и словаря
+# опечаток «Во\xadсточная» и «Восточная» — разные слова.
+_INVISIBLE_RE = re.compile("[­​-‏﻿]")
+
+# __NOTOC__, __TOC__ и прочие magic words MediaWiki — strip_code() оставляет
+# их как текст; у страниц-галерей это было ЕДИНСТВЕННОЕ содержимое чанка.
+_MAGIC_WORD_RE = re.compile(r"__[A-Z]+__")
+
+# Хвостовой разделитель ячейки в конце строки таблицы (см. _clean_wikitext).
+_TABLE_ROW_TAIL_RE = re.compile(r"[ \t]*\|[ \t]*$", re.MULTILINE)
+
+# Строка-подпись: «Видео:», «Промо-медиа:» — подписи вкладок <tabber> (см.
+# замену «Label=» -> «Label:» в _clean_wikitext). Если в секции остались только
+# они (галерея, чьё содержимое — <gallery>, уже вырезано), текста там нет.
+_LABEL_LINE_RE = re.compile(r"^.{1,80}:$")
+
+# Поля-картинки инфобокса: значение — имя файла («ACI-Ezio.png», «250px»),
+# а не факт. Обложка книги сюда не относится — там имя художника.
+_INFOBOX_IMAGE_KEY_RE = re.compile(r"^(изображение|image|подпись|caption)\d*$", re.IGNORECASE)
+
+# Значение-заглушка: в шаблонах событий незаполненные поля стоят как «-».
+_INFOBOX_EMPTY_VALUE_RE = re.compile(r"^[-—–?\s]*$")
+
+# Ключи инфобокса — внутренние имена параметров шаблона, а не подписи, которые
+# видит читатель вики: «ДР», «ДС», «Пред». Подписи сверены с исходниками
+# шаблонов (action=parse&page=Шаблон:…, разметка <data source=…><label>…).
+#
+# Словарь ПО ШАБЛОНУ, а не общий: «ДР» у Персонажа — «Дата рождения», а у
+# Фракции — «Дата реорганизации». Из исходников автоматически не берём: там
+# встречаются ошибки самой вики (у Комикса ключ UPC подписан «Следующий») и
+# подписи-условия ({{#if:…}}). Ключи, которых здесь нет, остаются как есть.
+_INFOBOX_KEY_LABELS: Dict[str, Dict[str, str]] = {
+    "персонаж": {
+        "ДР": "Дата рождения", "ДС": "Дата смерти", "МС": "Место смерти",
+        "Убит": "Убийца", "База данных": "Записи в базе данных",
+    },
+    "воспоминание": {
+        "Пред": "Предыдущее воспоминание", "След": "Следующее воспоминание",
+        "Парал": "Параллельное воспоминание",
+        "100%Синх": "Условие полной синхронизации",
+    },
+    "фракция": {
+        "ДФ": "Дата основания", "ДР": "Дата реорганизации", "ДС": "Дата распада",
+        "База данных": "Записи в базе данных",
+    },
+    # Пред/След/Парал — из шаблона. Остальное — старые параметры битв: текущий
+    # шаблон их уже не выводит, но в статьях они есть. Подписи — по смыслу
+    # значений (у1: «Французская армия (30.000 солдат)»).
+    "событие": {
+        "Пред": "Предыдущее событие", "След": "Следующее событие",
+        "Парал": "Параллельное событие",
+        "prev": "Предыдущее событие", "next": "Следующее событие",
+        "сторона1": "Сторона 1", "сторона2": "Сторона 2",
+        "у1": "Силы стороны 1", "у2": "Силы стороны 2",
+        "командующий1": "Командующий стороны 1", "командующий2": "Командующий стороны 2",
+        "жертва1": "Потери стороны 1", "жертва2": "Потери стороны 2",
+    },
+    "локация": {"Основал": "Основатель", "Дата": "Дата основания"},
+    "предметы": {"Создано": "Создатель"},
+    "игра": {"Релиз": "Дата релиза"},
+    "книга": {
+        "Обложка": "Автор обложки", "Языки": "Язык оригинала",
+        "Перевод": "Переводчик", "Страниц": "Количество страниц",
+    },
+    "комикс": {
+        "Обложка": "Автор обложки", "Языки": "Язык оригинала",
+        "Перевод": "Переводчик", "Страниц": "Количество страниц",
+    },
+}
+
 
 def _clean_wikitext(raw: str) -> str:
     """
@@ -62,7 +150,7 @@ def _clean_wikitext(raw: str) -> str:
     разворачивает [[Цель|Текст]]/markup, шаблоны без явной обработки исчезают
     (их и не должно тут остаться — инфобокс вырезается отдельно до этого вызова).
     """
-    code = mwparserfromhell.parse(raw)
+    code = mwparserfromhell.parse(_BR_RE.sub("\n", raw))
     # filter_tags рекурсивный: <references group="DLC"><ref>...</ref><ref>...</ref></references>
     # (групповые именованные сноски) даёт в списке и внешний <references>, и вложенные
     # <ref>. Первое же remove(references) уносит вложенные ref вместе с собой из дерева —
@@ -83,15 +171,31 @@ def _clean_wikitext(raw: str) -> str:
     ):
         code.remove(link)
 
+    # Таблицы: strip_code() склеивает ячейки без разделителя — таблица
+    # характеристик превращалась в «СкоростьМощностьЗащитаСтоимость245150000».
+    # " | " после каждой ячейки и перенос ПЕРЕД каждой строкой: перед, а не
+    # после — у первой строки таблицы явного «|-» (тега tr) в wikitext нет.
+    # Связь «колонка — значение» остаётся по порядку ячеек.
+    for cell in code.filter_tags(matches=lambda t: str(t.tag) in ("td", "th")):
+        code.insert_after(cell, " | ")
+    for row in code.filter_tags(matches=lambda t: str(t.tag) == "tr"):
+        code.insert_before(row, "\n")
+
     text = code.strip_code(normalize=True, collapse=True)
+    text = _INVISIBLE_RE.sub("", text).replace("\xa0", " ")
+    text = _MAGIC_WORD_RE.sub("", text)
 
     # <tabber> (вкладки с диалоговыми ветками) — strip_code снимает сами теги,
     # но не знает внутренний mini-синтаксис: "|-|" разделитель веток и "Label="
     # перед репликой остаются обычным текстом. "Label=" -> "Label:" — читаемо
     # и не теряет информацию (это подпись ветки диалога), "|-|" просто мусор.
     text = text.replace("|-|", "")
+    text = _TABLE_ROW_TAIL_RE.sub("", text)
     text = re.sub(r"^(.{1,80})=$", r"\1:", text, flags=re.MULTILINE)
 
+    # Пробелы у переносов строк (« текст» у вложенных пунктов списка) сознательно
+    # не трогаем: смысла для поиска в них нет, а правка сдвинула бы текст ~60%
+    # чанков корпуса и стоила бы их полного переэмбеддинга (проверено dry-run).
     text = re.sub(r"[ \t]+", " ", text)
     text = re.sub(r"\n{3,}", "\n\n", text)
     return text.strip()
@@ -115,8 +219,28 @@ def _classify_template(template) -> Tuple[bool, str]:
     return False, ""
 
 
-def _extract_infobox(wikicode) -> Tuple[Optional[Dict[str, str]], Optional[str], Optional[str]]:
-    """Первый top-level шаблон, похожий на инфобокс -> (поля, сырой текст шаблона, причина классификации)."""
+def _clean_infobox_value(raw: str) -> str:
+    """
+    Значение поля инфобокса -> одна строка. Список (пункты по строкам, в
+    исходнике через <br> или «*») -> перечисление через запятую: «Семья
+    Аудиторе, Ассасины, Итальянское Братство». Длинный текст (письмо в
+    инфобоксе «Электронной почты») сохраняет переносы — запятые его бы испортили.
+    """
+    value = _clean_wikitext(raw)
+    lines = [line.strip().lstrip("*#:;").strip() for line in value.splitlines()]
+    lines = [line for line in lines if line]
+    if len(lines) > 1 and all(len(line) <= 80 for line in lines):
+        return ", ".join(line.rstrip(",;") for line in lines)
+    return "\n".join(lines)
+
+
+def _extract_infobox(
+    wikicode,
+) -> Tuple[Optional[Dict[str, str]], Optional[str], Optional[str], Optional[str]]:
+    """
+    Первый top-level шаблон, похожий на инфобокс -> (поля, сырой текст шаблона,
+    причина классификации, имя шаблона). Поля-картинки и заглушки «-» отброшены.
+    """
     for template in wikicode.filter_templates(recursive=False):
         is_infobox, reason = _classify_template(template)
         if not is_infobox:
@@ -124,18 +248,41 @@ def _extract_infobox(wikicode) -> Tuple[Optional[Dict[str, str]], Optional[str],
 
         params: Dict[str, str] = {}
         for p in template.params:
-            value = _clean_wikitext(str(p.value))
-            if value:
-                params[str(p.name).strip()] = value
+            key = str(p.name).strip()
+            if _INFOBOX_IMAGE_KEY_RE.match(key):
+                continue
+            value = _clean_infobox_value(str(p.value))
+            if not _INFOBOX_EMPTY_VALUE_RE.match(value):
+                params[key] = value
 
         if params:
-            return params, str(template), reason
+            return params, str(template), reason, str(template.name).strip()
 
-    return None, None, None
+    return None, None, None, None
 
 
-def _serialize_infobox(params: Dict[str, str]) -> str:
-    return ". ".join(f"{key}: {value}" for key, value in params.items()) + "."
+def _infobox_label(template_name: str, key: str, params: Dict[str, str]) -> str:
+    # Имя шаблона в MediaWiki нечувствительно к регистру первой буквы и к «_»
+    # вместо пробела: «Событие» и «событие» — один шаблон.
+    template = template_name.replace("_", " ").strip().lower()
+    # У Фракции подпись зависит от типа — так же, как в самом шаблоне
+    # ({{#ifeq:{{{Тип|}}}|Государство|Столица|Штаб-квартира}}).
+    if template == "фракция" and key in ("Штаб", "Локации"):
+        is_state = params.get("Тип") == "Государство"
+        if key == "Штаб":
+            return "Столица" if is_state else "Штаб-квартира"
+        return "Крупные города" if is_state else "Локации"
+    label = _INFOBOX_KEY_LABELS.get(template, {}).get(key, key)
+    # Старые параметры шаблонов бывают со строчной: «дата», «место».
+    return label[:1].upper() + label[1:]
+
+
+def _serialize_infobox(params: Dict[str, str], template_name: str) -> str:
+    # rstrip(".") — чтобы «1459 г.» + разделитель не давали «1459 г..».
+    return ". ".join(
+        f"{_infobox_label(template_name, key, params)}: {value.rstrip('.')}"
+        for key, value in params.items()
+    ) + "."
 
 
 def _build_records(article: dict) -> List[Dict[str, Any]]:
@@ -201,16 +348,22 @@ def _merge_short(records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     смерженного чанка остаётся у ранее принятого — он конкретнее. Пустые записи
     (заголовок-контейнер без своего текста, только подразделы) пропускаются —
     их подразделы уже получили свой section_path независимо через stack выше.
+    Так же пропускаются записи из одних подписей вкладок («Видео:», «Промо-медиа:»).
     """
     result: List[Dict[str, Any]] = []
     for rec in records:
         text = rec["clean_text"].strip()
-        if not text:
+        if not text or all(_LABEL_LINE_RE.match(line) for line in text.splitlines() if line.strip()):
             continue
         rec["clean_text"] = text
 
         if result and len(text) < MERGE_THRESHOLD_CHARS:
-            result[-1]["clean_text"] += "\n\n" + text
+            # Заголовок секции срезан в _build_records (он живёт в section_path),
+            # а section_path слитого чанка — от предыдущей секции. Без заголовка
+            # в тексте «Интересные факты» читались бы как продолжение
+            # «Биография > Смерть», в том числе и моделью при ответе.
+            heading = rec["title"].rstrip(":")
+            result[-1]["clean_text"] += f"\n\n{heading}:\n{text}"
             continue
 
         result.append(rec)
@@ -236,7 +389,21 @@ def _find_overlap_start(text: str) -> str:
     return text[raw_start:]
 
 
+def _split_finer(text: str, seps: List[str]) -> List[str]:
+    """
+    text не уменьшить разделителем seps[0] — пробуем более мелкий, а на
+    последнем — жёсткая нарезка по символам.
+    """
+    if len(seps) > 1:
+        return _recursive_split(text, seps[1:])
+    step = max(TARGET_CHARS - OVERLAP_CHARS, 1)
+    return [text[i:i + TARGET_CHARS] for i in range(0, len(text), step)]
+
+
 def _recursive_split(text: str, seps: List[str] = _SPLIT_SEPARATORS) -> List[str]:
+    """
+    Инвариант: ни один кусок на выходе не длиннее SPLIT_THRESHOLD_CHARS.
+    """
     if len(text) <= SPLIT_THRESHOLD_CHARS:
         return [text]
 
@@ -253,15 +420,18 @@ def _recursive_split(text: str, seps: List[str] = _SPLIT_SEPARATORS) -> List[str
         if current:
             chunks.append(current)
             current = _find_overlap_start(current) + sep + part
+            # part может быть сам по себе огромным (абзац диалога на 90 реплик
+            # после короткого вступления) — тогда и current с ним огромный.
+            # Раньше он уходил в чанки как есть: мельче резали только part,
+            # перед которым буфер был пуст (ветка ниже). Режем мельче вместе
+            # с overlap, чтобы связка с предыдущим чанком не терялась.
+            if len(current) > SPLIT_THRESHOLD_CHARS:
+                chunks.extend(_split_finer(current, seps))
+                current = ""
         else:
             # part сам по себе уже длиннее TARGET_CHARS — этим разделителем
-            # его не уменьшить, пробуем более мелкий, а на последнем — жёсткая
-            # нарезка по символам.
-            if len(seps) > 1:
-                chunks.extend(_recursive_split(part, seps[1:]))
-            else:
-                step = max(TARGET_CHARS - OVERLAP_CHARS, 1)
-                chunks.extend(part[i:i + TARGET_CHARS] for i in range(0, len(part), step))
+            # его не уменьшить.
+            chunks.extend(_split_finer(part, seps))
             current = ""
 
     if current:
@@ -284,9 +454,9 @@ def chunk_article(article: dict, source_url: str) -> List[Dict[str, Any]]:
 
     # Шаг 1 — инфобокс, на полном wikitext, до нарезки по секциям.
     wikicode = mwparserfromhell.parse(article["wikitext"])
-    infobox_params, infobox_raw, infobox_reason = _extract_infobox(wikicode)
+    infobox_params, infobox_raw, infobox_reason, infobox_template = _extract_infobox(wikicode)
     if infobox_params:
-        infobox_text = _serialize_infobox(infobox_params)
+        infobox_text = _serialize_infobox(infobox_params, infobox_template)
         print(f"  📦 {article_title}: инфобокс ({infobox_reason}), {len(infobox_params)} полей")
         chunks.append({
             "article_title": article_title,
@@ -294,7 +464,13 @@ def chunk_article(article: dict, source_url: str) -> List[Dict[str, Any]]:
             "section_path": article_title,
             "chunk_type": "infobox",
             "chunk_text": f"{article_title} (инфобокс)\n{infobox_text}",
-            "metadata": {**base_metadata, "infobox_params": infobox_params},
+            # infobox_params — с сырыми ключами шаблона (для отладки), подписи
+            # только в chunk_text.
+            "metadata": {
+                **base_metadata,
+                "infobox_params": infobox_params,
+                "infobox_template": infobox_template,
+            },
         })
 
     # Шаг 2-3 — плоский список секций + очистка (с вырезанием инфобокса из

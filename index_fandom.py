@@ -14,10 +14,17 @@ WikiChunker, батчит эмбеддинги через GeminiAdapter, льё�
 прогоне (без --title) — точный заголовок статьи (apfrom, см. fandom_scraper.py).
 --resume читает его при старте и продолжает ровно с этой статьи, не с начала
 списка и не с границы страницы allpages; удаляется сам, когда корпус пройден
-целиком без обрыва на дневном лимите.
+целиком без обрыва на дневном лимите. Если MAX_CONSECUTIVE_ERRORS статей
+подряд падают с ошибкой (лежит БД/сеть), прогон останавливается и чекпоинт
+откатывается на первую упавшую статью серии.
 
 Сессия БД и commit() — на КАЖДУЮ статью, не одна на весь прогон: падение на
 статье №800 из тысяч не должно откатывать 799 уже успешно залитых.
+
+Статья пропускается, только если не изменились ни revid на вики, ни
+CHUNKER_VERSION (см. wiki_chunker.py). Подняли версию — обычный полный прогон
+перечанкует весь корпус, а эмбеддинги чанков, чей текст не изменился, возьмёт
+из старой копии статьи: квота тратится только на реально новые тексты.
 """
 import argparse
 import asyncio
@@ -28,9 +35,9 @@ from urllib.parse import quote
 from sqlalchemy import select
 
 from app.core.config import settings
-from app.domain.wiki_chunker import chunk_article
+from app.domain.wiki_chunker import CHUNKER_VERSION, chunk_article
 from app.infrastructure.database.connection import async_session_maker
-from app.infrastructure.database.models import Article
+from app.infrastructure.database.models import Article, ArticleChunk
 from app.infrastructure.gemini_adapter import DailyQuotaExceeded, GeminiAdapter
 from app.infrastructure.postgres_adapter import PostgresVectorStore
 from fandom_scraper import FandomScraper
@@ -39,12 +46,37 @@ UNIVERSE = "AC"
 BASE_WIKI_URL = "https://assassinscreed.fandom.com/ru/wiki/"
 DRY_RUN_OUTPUT = Path("dry_run_output.jsonl")
 CHECKPOINT_FILE = Path("index_checkpoint.json")
+MAX_CONSECUTIVE_ERRORS = 5
+# Чем посчитаны векторы статьи — переиспользовать их можно только для той же
+# модели и размерности.
+EMBEDDING_MODEL_TAG = f"{settings.EMBEDDING_MODEL}/{settings.VECTOR_DIMENSION}"
 
 
 def _article_url(title: str) -> str:
     # Подтверждено эмпирически против настоящего MediaWiki API
     # (action=query&prop=info&inprop=url): пробелы -> "_", остальное — percent-encoding.
     return BASE_WIKI_URL + quote(title.replace(" ", "_"))
+
+
+async def _reusable_embeddings(session, existing: Article | None) -> dict:
+    """
+    Эмбеддинги старой копии статьи по тексту чанка: тот же текст той же моделью
+    даёт тот же вектор, платить за него квотой повторно незачем. После правки
+    чанкера меняется малая часть чанков, а перечанковывается весь корпус.
+
+    Статьи, залитые до появления метки embedding_model, считаются залитыми
+    текущей моделью: весь корпус посчитан gemini-embedding-001/768 (проверено
+    по размерности и ровным нормам векторов, 2026-09-28).
+    """
+    if existing is None:
+        return {}
+    if existing.metadata_obj.get("embedding_model", EMBEDDING_MODEL_TAG) != EMBEDDING_MODEL_TAG:
+        return {}
+    rows = await session.execute(
+        select(ArticleChunk.chunk_text, ArticleChunk.embedding)
+        .where(ArticleChunk.article_id == existing.id)
+    )
+    return {chunk_text: embedding for chunk_text, embedding in rows}
 
 
 async def _process_article(
@@ -65,13 +97,25 @@ async def _process_article(
     async with async_session_maker() as session:
         existing = await session.scalar(select(Article).where(Article.url == source_url))
 
-        if existing and not force and existing.metadata_obj.get("revid") == article["revid"]:
-            print(f"⏭  {article['title']}: revid не изменился, пропуск")
+        if (
+            existing
+            and not force
+            and existing.metadata_obj.get("revid") == article["revid"]
+            and existing.metadata_obj.get("chunker_version") == CHUNKER_VERSION
+        ):
+            print(f"⏭  {article['title']}: revid и версия чанкера не изменились, пропуск")
             return "skipped-unchanged"
 
         chunks = chunk_article(article, source_url)
         if not chunks:
-            print(f"⚠️  {article['title']}: чанкер не дал ни одного чанка, пропуск")
+            # Статья, пустая для новой версии чанкера (галерея из одного
+            # __NOTOC__), иначе так и осталась бы в БД со старыми чанками.
+            if existing and not dry_run:
+                await session.delete(existing)
+                await session.commit()
+                print(f"🗑  {article['title']}: чанков больше нет, старая копия удалена из БД")
+            else:
+                print(f"⚠️  {article['title']}: чанкер не дал ни одного чанка, пропуск")
             return "skipped-empty"
 
         if dry_run:
@@ -88,7 +132,12 @@ async def _process_article(
             return "ok"
 
         texts = [c["chunk_text"] for c in chunks]
-        embeddings = await llm_client.generate_embeddings_batch(texts)
+        known = await _reusable_embeddings(session, existing)
+        new_texts = [t for t in dict.fromkeys(texts) if t not in known]
+        if new_texts:
+            known.update(zip(new_texts, await llm_client.generate_embeddings_batch(new_texts)))
+        embeddings = [known[t] for t in texts]
+        print(f"  🧮 эмбеддингов: {len(new_texts)} новых из {len(texts)}")
 
         if existing:
             await session.delete(existing)
@@ -97,7 +146,12 @@ async def _process_article(
         db_article = Article(
             title=article["title"],
             url=source_url,
-            metadata_obj={"revid": article["revid"], "categories": article["categories"]},
+            metadata_obj={
+                "revid": article["revid"],
+                "categories": article["categories"],
+                "chunker_version": CHUNKER_VERSION,
+                "embedding_model": EMBEDDING_MODEL_TAG,
+            },
         )
         session.add(db_article)
         await session.flush()
@@ -139,6 +193,7 @@ async def index_all(
             title_iter = scraper.list_all_titles(resume_from=resume_from)
 
         i = 0
+        error_streak: list[str] = []  # заголовки статей, упавших подряд
         async for title in title_iter:
             if limit is not None and i >= limit:
                 break
@@ -155,6 +210,7 @@ async def index_all(
             try:
                 status = await _process_article(title, scraper, llm_client, dry_run, force)
                 stats[status] += 1
+                error_streak.clear()
             except DailyQuotaExceeded:
                 # Дневной лимит free tier — ждать до полуночи по Тихоокеанскому
                 # смысла нет внутри этого прогона. Ретраить на оставшихся
@@ -177,6 +233,24 @@ async def index_all(
                 # через `--title` позже, не автоматическим повтором здесь.
                 print(f"❌ {title}: {type(exc).__name__}: {exc}")
                 stats["error"] += 1
+                # Но если падают N статей ПОДРЯД — это уже не статьи, а
+                # инфраструктура (лежит Postgres, нет сети, Cloudflare). Без
+                # этой проверки чекпоинт уезжал вперёд по всему корпусу, и
+                # каждая статья по пути молча терялась для --resume. Тип
+                # исключения сознательно не разбираем: любой системный сбой
+                # даёт серию, а одна битая статья — нет. Чекпоинт откатываем
+                # на первую статью серии, чтобы --resume начал с неё.
+                error_streak.append(title)
+                if len(error_streak) >= MAX_CONSECUTIVE_ERRORS:
+                    if titles is None:
+                        CHECKPOINT_FILE.write_text(
+                            json.dumps({"title": error_streak[0]}, ensure_ascii=False)
+                        )
+                    print(f"\n⛔ {len(error_streak)} статей подряд упали с ошибкой — похоже "
+                          f"на системный сбой (БД, сеть, Cloudflare), а не на сами статьи. "
+                          f"Прогон остановлен, чекпоинт откачен на «{error_streak[0]}». "
+                          f"Устрани причину и запусти снова с --resume.")
+                    break
         else:
             # Цикл дошёл до конца списка статей без break (не упёрлись в дневной
             # лимит) — корпус пройден целиком, чекпоинту дальше нечего хранить.

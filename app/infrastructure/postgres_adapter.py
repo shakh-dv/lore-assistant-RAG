@@ -13,10 +13,16 @@ _WORD_RE = re.compile(r"[^\W_]+(?:-[^\W_]+)*", re.UNICODE)
 _LATIN_RE = re.compile(r"[A-Za-z]")
 
 # После этих символов заглавная буква — просто начало предложения.
-_SENTENCE_END = ".!?…:;\n"
+# «>» — разделитель в префиксе чанка «Статья > Биография > Юность»: без него
+# слова заголовков («биография», «история», «описание») считались именами и
+# становились мишенями для исправления опечаток.
+_SENTENCE_END = ".!?…:;>\n"
 
 # Короткие слова не берём: на них триграммы дают слишком много ложных совпадений.
 _MIN_TERM_LEN = 4
+# Длиннее — почти всегда склейка или имя файла («acezioauditorethethirdchapter»),
+# а не имя, которое человек станет набирать.
+_MAX_TERM_LEN = 30
 
 # Порог триграммного сходства. По замерам: опечатки дают 0.38-0.70,
 # разные имена — 0.00. 0.35 разделяет их с запасом.
@@ -66,10 +72,11 @@ def extract_terms(chunk_text: str) -> Dict[str, bool]:
     terms: Dict[str, bool] = {}
 
     def add(word: str, proper: bool) -> None:
-        if len(word) < _MIN_TERM_LEN or word.isdigit():
+        # Слова с цифрами — размеры картинок и склейки строк таблиц («250px»,
+        # «5ятаган35511300f»), в роли исправления опечатки они не нужны.
+        if not _MIN_TERM_LEN <= len(word) <= _MAX_TERM_LEN or any(ch.isdigit() for ch in word):
             return
-        key = word[:64]
-        terms[key] = terms.get(key, False) or proper
+        terms[word] = terms.get(word, False) or proper
 
     for match in _WORD_RE.finditer(chunk_text):
         raw = match.group(0)
@@ -225,6 +232,12 @@ class PostgresVectorStore(IVectorStore):
             # ORDER BY <-> — это KNN по GiST-индексу; similarity() задаёт порог явно,
             # чтобы не зависеть от сессионной настройки pg_trgm.similarity_threshold.
             #
+            # «%» — префильтр, который тоже идёт через GiST-индекс. Без него, если
+            # похожих слов нет вовсе, KNN перебирал весь индекс, отбрасывая строки
+            # фильтром similarity() (~720 мс на полном корпусе, 565 тыс. строк).
+            # Порог «%» по умолчанию 0.3 < 0.35 — он только надмножество, точный
+            # порог по-прежнему задаёт similarity().
+            #
             # is_proper — вторая защита: чинить имеет смысл только имена, ради
             # которых словарь и заводился. Без неё любой глагол из лора становится
             # мишенью, и «происходит» уезжает в «проходит».
@@ -233,6 +246,7 @@ class PostgresVectorStore(IVectorStore):
                 .where(
                     LoreTerm.universe == universe,
                     LoreTerm.is_proper.is_(True),
+                    LoreTerm.term.op("%")(word),
                     func.similarity(LoreTerm.term, word) >= _SIMILARITY_THRESHOLD,
                 )
                 .order_by(LoreTerm.term.op("<->")(word))

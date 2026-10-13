@@ -2,7 +2,7 @@ from sqlalchemy.sql import func
 from sqlalchemy import Boolean, Integer
 from datetime import datetime
 from typing import Optional
-from sqlalchemy import String, Text, ForeignKey, DateTime, Index, UniqueConstraint
+from sqlalchemy import String, Text, ForeignKey, DateTime, Index, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from pgvector.sqlalchemy import Vector
@@ -102,5 +102,16 @@ class LoreTerm(Base):
             "term",
             postgresql_using="gist",
             postgresql_ops={"term": "gist_trgm_ops"},
+        ),
+        # Проверка «слово запроса уже есть в лоре» в correct_typos сравнивает
+        # ОСНОВЫ слов. Без индекса по основе Postgres считал ts_lexize для всех
+        # 565 тыс. строк на каждый вопрос в чат (~600 мс). ts_lexize объявлена
+        # IMMUTABLE, поэтому индекс по выражению допустим. Выражение должно
+        # совпадать с запросом в correct_typos символ в символ, иначе индекс
+        # не подхватится.
+        Index(
+            "ix_lore_terms_universe_stem",
+            "universe",
+            text("COALESCE((ts_lexize('russian_stem', term))[1], term)"),
         ),
     )

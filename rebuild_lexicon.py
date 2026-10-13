@@ -28,7 +28,6 @@ async def rebuild():
             print("В базе нет чанков — нечего собирать.")
             return
 
-        # Полная пересборка: сначала сносим старый словарь целиком
         removed = (await session.execute(delete(LoreTerm))).rowcount
         if removed:
             print(f"Старый словарь очищен ({removed} слов).")
@@ -38,7 +37,6 @@ async def rebuild():
             for term, is_proper in extract_terms(chunk_text).items():
                 row = rows.get((article_id, term))
                 if row:
-                    # Слово из соседнего чанка: имя — если хоть одно вхождение имя
                     row.is_proper = row.is_proper or is_proper
                     continue
                 rows[(article_id, term)] = LoreTerm(

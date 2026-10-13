@@ -1,25 +1,9 @@
 """
-Скрапер Fandom (Assassin's Creed Wiki, ru) через MediaWiki API.
+Скрапер Fandom (Assassin's Creed Wiki, ru) через MediaWiki API, без парсинга HTML.
 
-Никакого парсинга HTML: у Fandom есть action=parse и action=query,
-которые отдают уже структурированные данные (wikitext, дерево секций,
-категории). Детали см. в CLAUDE.md, раздел "Как забирать данные с Fandom".
-
-Rate limit — 1 запрос/сек (последовательно, без параллельных вызовов):
-Fandom терпимый, но по договорённости не наглеем. maxlag=5 — конвенция
-MediaWiki: если реплика БД отстаёт больше чем на 5с, сервер сам просит
-подождать (ошибкой в теле или HTTP 503), вместо того чтобы отдать
-рассинхронизированные данные под нагрузкой.
-
-Это только слой получения сырых данных. WikiChunker (разбор wikitext
-на чанки по секциям) и заливка в БД — следующий шаг, добавляются
-отдельно поверх этого модуля.
-
-Важно для WikiChunker (на будущее, не про этот файл): MediaWiki
-`sections` не включает lead — текст ДО первого `==Заголовка==`. Это
-`wikitext[:sections[0]['byteoffset']]`, отдельный чанк с
-section_path=article_title. Часто самая важная часть статьи для
-коротких вопросов — забыть про неё легко.
+1 запрос/сек. maxlag=5 — конвенция MediaWiki: при отставании реплики сервер
+просит подождать, а не отдаёт рассинхронизированные данные.
+Cloudflare и детали API — CLAUDE.md, «Как забирать данные с Fandom».
 """
 import asyncio
 import time
@@ -29,18 +13,13 @@ import httpx
 
 BASE_URL = "https://assassinscreed.fandom.com/ru/api.php"
 
-# MediaWiki просит ставить в User-Agent контакт того, кто дёргает API.
-# HTTP-заголовки — только ASCII, кириллицу сюда класть нельзя (httpx уронит
-# UnicodeEncodeError). Контакт — публичный репозиторий проекта: по конвенции
-# MediaWiki подходит и URL, личный email в код не кладём.
+# MediaWiki просит контакт в User-Agent. Только ASCII — иначе httpx падает.
 USER_AGENT = "LoreAssistantRAG/1.0 (student project; +https://github.com/shakh-dv/lore-assistant-RAG-)"
 
 RATE_LIMIT_SECONDS = 1.0
 MAX_ATTEMPTS = 5
 
-# maxlag и ratelimited — временные, инфраструктурные: имеет смысл подождать
-# и повторить тот же запрос. missingtitle/invalidtitle/nosuchpageid — свойство
-# конкретной статьи, повторный запрос даст тот же результат всегда.
+# Временные — повтор поможет; missingtitle и т.п. повтор не изменит.
 _TRANSIENT_ERROR_CODES = {"maxlag", "ratelimited"}
 _PERMANENT_ARTICLE_ERRORS = {"missingtitle", "invalidtitle", "nosuchpageid"}
 
@@ -67,9 +46,7 @@ class FandomScraper:
         self._client = httpx.AsyncClient(headers={"User-Agent": user_agent}, timeout=30.0)
         self._rate_limit = rate_limit_seconds
         self._last_request = 0.0
-        # Лок нужен даже без параллельных вызовов сейчас — защищает от того,
-        # что кто-то потом решит дёрнуть fetch_article параллельно и молча
-        # пробьёт rate limit.
+        # Лок держит rate limit и при будущих параллельных вызовах.
         self._lock = asyncio.Lock()
 
     async def __aenter__(self) -> "FandomScraper":
@@ -84,12 +61,7 @@ class FandomScraper:
         await asyncio.sleep(wait)
 
     async def _get(self, params: dict) -> dict:
-        """
-        Один логический запрос с ретраями. Ретраится только то, что имеет шанс
-        пройти при повторе: сетевые сбои, 5xx/429, maxlag/ratelimited в теле.
-        Всё остальное (например missingtitle) поднимается сразу — вызывающий
-        код (fetch_article) решает, фатально это для статьи или нет.
-        """
+        """Запрос с ретраями сетевых сбоев, 5xx/429 и maxlag; остальное — сразу наверх."""
         for attempt in range(1, MAX_ATTEMPTS + 1):
             async with self._lock:
                 elapsed = time.monotonic() - self._last_request
@@ -129,17 +101,8 @@ class FandomScraper:
         self, resume_from: Optional[str] = None
     ) -> AsyncGenerator[str, None]:
         """
-        Все статьи основного пространства имён (без редиректов и служебных).
-        Пагинация — обычный проход по apcontinue из ответа MediaWiki (до 500
-        заголовков за страницу).
-
-        resume_from — точный заголовок статьи, с которого начать (включительно,
-        через параметр apfrom MediaWiki) — для --resume в index_fandom.py.
-        В отличие от apcontinue (даёт точку только на границе страницы allpages,
-        до 500 статей), apfrom стартует ровно с нужного заголовка: --resume
-        пересматривает не всю текущую страницу заново, а максимум одну статью
-        (саму resume_from — apfrom включает её) — дёшево даже без пропуска,
-        не то что 500.
+        Заголовки статей основного пространства, без редиректов. resume_from —
+        заголовок, с которого начать включительно (apfrom), для --resume.
         """
         apcontinue: Optional[str] = None
         apfrom: Optional[str] = resume_from
@@ -150,8 +113,6 @@ class FandomScraper:
                 "list": "allpages",
                 "apnamespace": 0,
                 "aplimit": 500,
-                # Редирект — не статья, а указатель на другую. Со своим текстом
-                # он даёт в базе пустой/дублирующий чанк.
                 "apfilterredir": "nonredirects",
             }
             if apcontinue:
@@ -165,7 +126,7 @@ class FandomScraper:
             fetched += len(data["query"]["allpages"])
             print(f"📄 Заголовков собрано: {fetched}...")
 
-            apfrom = None  # apfrom — только для самого первого запроса
+            apfrom = None  # только для первого запроса
             cont = data.get("continue")
             if not cont:
                 break
@@ -173,19 +134,8 @@ class FandomScraper:
 
     async def fetch_article(self, title: str) -> Optional[dict]:
         """
-        Wikitext + дерево секций + категории одним вызовом parse
-        (три prop в одном запросе экономнее для rate limit, чем три запроса).
-
-        None, если статья не существует/невалидна/удалена — это нормальный
-        случай на тысячах заголовков (например переименование между
-        составлением списка и запросом), не повод ронять весь прогон.
-
-        redirects=1 — без него редирект (например "Эцио Аудиторе" ->
-        "Эцио Аудиторе да Фиренце") отдаёт СВОЙ текст ("#перенаправление
-        [[...]]", пара десятков символов), а не статью-цель. list_all_titles
-        такие страницы уже фильтрует (apfilterredir), но при точечном вызове
-        через заголовок (--title) можно попасть на редирект напрямую —
-        без этого параметра тихо получили бы мусорный чанк вместо статьи.
+        Wikitext, секции, категории и revid одним вызовом parse. None, если
+        статьи нет. redirects=1 — чтобы --title по редиректу дал статью-цель.
         """
         try:
             data = await self._get({

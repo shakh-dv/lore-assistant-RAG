@@ -2,7 +2,6 @@ from typing import AsyncGenerator, List
 from fastapi import APIRouter, Depends
 from starlette.responses import StreamingResponse
 
-# Импортируем только то, что нужно роутеру
 from app.api.schemas import ChatRequest, UniverseOut, AnswerModeOut
 from app.api.dependencies import get_chat_use_case, get_universes_use_case
 from app.domain.answer_modes import list_modes
@@ -39,7 +38,7 @@ async def chat_endpoint(
     """
     Эндпоинт чата.
     """
-    # Конвертируем Pydantic модели в простые dict для совместимости с rewrite_query
+    # rewrite_query ждёт dict, а не Pydantic-модели.
     history = [msg.model_dump() for msg in request.history] if request.history else None
 
     stream: AsyncGenerator[str, None] = use_case.execute(

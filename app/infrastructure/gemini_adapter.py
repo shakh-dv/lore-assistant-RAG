@@ -1,33 +1,7 @@
 """
-Обёртка над google-genai. Два независимых пула квоты Gemini — эмбеддинги
-(embed_content) и генерация ответа (generate_content) — история этого файла
-почти целиком про первый: сегодняшний прогон живьём поймал и минутный (RPM),
-и дневной (RPD) лимит free tier, generate_answer_stream/rewrite_query их
-не задевают вообще, там всё осталось как было.
-
-Путь одного эмбеддинга — generate_embedding (один текст, вопрос в чате) сам
-не ходит в API, а зовёт generate_embeddings_batch([text]) — раньше это были
-две независимые реализации, из-за чего чат падал сырым traceback'ом, пока
-у батч-версии для индексатора уже была вся защита ниже:
-
-  generate_embeddings_batch  — режет список текстов на суб-батчи по ≤80
-  -> _embed_sub_batch         — до 5 попыток на суб-батч:
-       _throttle_embed_rate   — упреждающая пауза, если за 60с текстов
-                                 набежало больше 80 (лимит free tier — 100,
-                                 80 — запас на неточность подсчёта). Батч
-                                 не больше 80 — не совпадение: если суб-батч
-                                 сам по себе больше лимита, троттлинг никогда
-                                 не пропустит его (см. assert у констант)
-       embed_content          — сам вызов; на 429 смотрим КОД ошибки:
-         _has_daily_quota_violation — если это дневной лимит (PerDay,
-                                       ~1000/день) — ретраить бессмысленно,
-                                       поднимаем DailyQuotaExceeded сразу
-         иначе (PerMinute/сеть)     — backoff и ещё попытка
-
-DailyQuotaExceeded — отдельный класс специально для того, чтобы вызывающий
-код (index_fandom.py) мог остановить ВЕСЬ прогон, а не просто пропустить
-одну статью: после дневного лимита ни одна из оставшихся не пройдёт всё
-равно, ретраить их по одной — часы впустую.
+Обёртка над google-genai: эмбеддинги (с троттлингом, ретраями и детектом
+дневной квоты) и генерация ответа. Путь эмбеддинга и лимиты free tier —
+ARCHITECTURE.md, 5.3.
 """
 import asyncio
 import time
@@ -40,12 +14,7 @@ from typing import AsyncGenerator, List
 
 from app.domain.answer_modes import AnswerMode, DEFAULT_MODE
 
-# Точного лимита Gemini на число текстов в одном embed_content не нашли в SDK —
-# консервативный дефолт, подстроить по факту первого реального прогона.
-# РАВЕН _EMBED_RATE_LIMIT_PER_MINUTE (см. assert ниже, после её определения) —
-# иначе суб-батч сам по себе может быть больше минутного окна, и
-# _throttle_embed_rate уходит в бесконечную рекурсию: условие
-# used + upcoming > лимит остаётся истинным при любом used >= 0, сколько ни жди.
+# Не больше _EMBED_RATE_LIMIT_PER_MINUTE (см. assert ниже).
 _EMBED_BATCH_SIZE = 80
 _EMBED_MAX_ATTEMPTS = 5
 _RETRYABLE_CLIENT_CODES = {429}
@@ -53,21 +22,15 @@ _RETRYABLE_CLIENT_CODES = {429}
 
 class DailyQuotaExceeded(RuntimeError):
     """
-    Free tier Gemini embed_content — не только RPM (100/мин, самовосстанавливается
-    ретраем), но и RPD (~1000/день, сбрасывается в полночь по Тихоокеанскому
-    времени). Дневной лимит ретраем не полечить — ждать нечего, quotaId в
-    ошибке содержит "PerDay" вместо "PerMinute". Раз обнаружено — не тратим
-    время на 5 попыток backoff на КАЖДОЙ из оставшихся статей корпуса, поднимаем
-    сразу, чтобы вызывающий код (index_fandom.py) мог остановить весь прогон.
+    Дневная квота (~1000/день) исчерпана — ретраи бессмысленны до полуночи по
+    Тихоокеанскому. Отдельный класс, чтобы индексатор остановил весь прогон.
     """
 
 
 def _has_daily_quota_violation(exc: ClientError) -> bool:
     """
-    exc.details — разобранный JSON тела ответа: {"error": {..., "details": [...]}}.
-    Ищем среди QuotaFailure.violations запись, чей quotaId — про PerDay, а не
-    про PerMinute. Структурный доступ, а не str(exc).find("PerDay") — 429 может
-    перечислить сразу несколько нарушенных квот в одном ответе.
+    Есть ли среди QuotaFailure.violations quotaId с PerDay. По структуре, а не
+    поиском по строке: один 429 может перечислять несколько квот.
     """
     try:
         error_details = exc.details.get("error", {}).get("details", [])
@@ -84,26 +47,17 @@ def _has_daily_quota_violation(exc: ClientError) -> bool:
     return False
 
 
-# Обнаружено эмпирически на реальном прогоне (429 RESOURCE_EXHAUSTED):
-# free tier Gemini embed_content — 100 текстов/мин (quotaId
-# EmbedContentRequestsPerMinutePerUserPerProjectPerModel-FreeTier). Ретрай
-# с backoff и так восстанавливается, но на 2984 статьях будет упираться в
-# лимит почти на каждой — тратим время на паузы вместо того, чтобы просто
-# не разгоняться. 80, не 100 — запас на неточность подсчёта скользящего окна.
+# Free tier — 100 текстов/мин; 80 — запас на неточность скользящего окна.
 _EMBED_RATE_LIMIT_PER_MINUTE = 80
 
-# Инвариант, не рантайм-проверка: если это когда-нибудь станет неправдой,
-# лучше явный AssertionError при импорте, чем часовое зависание в середине
-# прогона на 2000-й статье (см. комментарий у _EMBED_BATCH_SIZE выше).
 assert _EMBED_BATCH_SIZE <= _EMBED_RATE_LIMIT_PER_MINUTE, (
     "_EMBED_BATCH_SIZE не может быть больше _EMBED_RATE_LIMIT_PER_MINUTE — "
     "иначе _throttle_embed_rate уходит в бесконечную рекурсию на батче, "
     "который сам по себе больше минутного окна"
 )
 
-# Промт и температура на каждый режим ответа.
-# Правила про коллизии между вселенными тут нет намеренно: поиск фильтрует
-# чанки по одной вселенной, так что в контекст двух разных «Яблок» не попадёт.
+# Промт и температура на режим ответа. Правила про разные вселенные нет:
+# поиск и так фильтрует чанки по одной.
 _STORYTELLER = (
     "Ты — харизматичный рассказчик и знаток лора. Твоя задача — погружать пользователя в историю, "
     "основываясь на предоставленных архивах.\n\n"
@@ -140,10 +94,8 @@ _MODES = {
 
 class GeminiAdapter:
     def __init__(self, api_key: str, chat_model_name: str, embedding_model_name: str, embedding_dimension: int):
-        # Клиент создаётся лениво: в конструкторе сетевых вызовов нет.
         self.client = genai.Client(api_key=api_key)
         self.chat_model = chat_model_name
-        # Префикс 'models/' новый SDK подставляет сам, вручную ничего не клеим.
         self.embedding_model = embedding_model_name
         self.embedding_dimension = embedding_dimension
         # Скользящее окно: (время_вызова, число_текстов) за последние ~60с.
@@ -168,23 +120,14 @@ class GeminiAdapter:
     async def generate_embedding(
         self, text: str, task_type: str = "RETRIEVAL_DOCUMENT"
     ) -> list[float]:
-        # Асимметричный поиск: чанки кодируем как DOCUMENT, вопрос — как QUERY.
-        # Модель тогда кладёт вопрос рядом с отвечающим абзацем, а не рядом
-        # с похожим по формулировке. Дефолт — под загрузчики, их большинство.
-        #
-        # Переиспользует generate_embeddings_batch (не отдельный embed_content
-        # напрямую) — раньше был отдельный вызов без ретрая/троттлинга/детекта
-        # квоты вообще, из-за чего чат падал сырым traceback на первом же 429
-        # вместо мягкой деградации, которая уже была у индексатора.
+        # Чанки — DOCUMENT, вопрос чата — QUERY: тогда вопрос ложится рядом с
+        # отвечающим абзацем, а не с похожим по формулировке.
         return (await self.generate_embeddings_batch([text], task_type))[0]
 
     async def generate_embeddings_batch(
         self, texts: list[str], task_type: str = "RETRIEVAL_DOCUMENT"
     ) -> list[list[float]]:
-        """
-        Батч-версия generate_embedding — один вызов API на несколько текстов
-        вместо цикла поштучных. Порядок результата соответствует порядку texts.
-        """
+        """Эмбеддинги в порядке texts, суб-батчами по _EMBED_BATCH_SIZE."""
         if not texts:
             return []
 
@@ -207,21 +150,13 @@ class GeminiAdapter:
                     ),
                 )
             except (ServerError, httpx.TransportError) as exc:
-                # bare `raise` обязан жить ВНУТРИ except-блока — вне его Python
-                # теряет активное исключение (RuntimeError: No active exception
-                # to reraise), поймано на тесте перед этой правкой.
                 if attempt == _EMBED_MAX_ATTEMPTS:
                     raise
                 reason = f"{type(exc).__name__}: {exc}"
             except ClientError as exc:
-                # 429 — rate limit, стоит подождать и повторить. Любой другой
-                # 4xx (400/401/403/404) — повтор даст тот же результат, поднимаем сразу.
+                # Повторять имеет смысл только 429, остальные 4xx не изменятся.
                 if exc.code not in _RETRYABLE_CLIENT_CODES:
                     raise
-                # PerDay, а не PerMinute — до завтра не подождём, retry бессмыслен.
-                # Читаем quotaId ИЗ структуры violations, не грепаем строку целиком —
-                # 429 может перечислять сразу несколько квот в одном ответе, и
-                # плоский поиск подстроки рискует сработать не на той причине.
                 if _has_daily_quota_violation(exc):
                     print(f"⛔ Daily quota violation, сырой ответ: {exc.details}")
                     raise DailyQuotaExceeded(str(exc)) from exc
@@ -229,9 +164,7 @@ class GeminiAdapter:
                     raise
                 reason = f"{type(exc).__name__}: {exc}"
             else:
-                # Рассинхронизация порядка эмбеддингов и чанков — худший вид
-                # бага в RAG: ничего не падает, retrieval работает, но выдаёт
-                # не те чанки. Лучше явный сбой сразу.
+                # Рассинхрон векторов и чанков ничего не роняет, а поиск тихо врёт.
                 if len(result.embeddings) != len(sub_batch):
                     raise RuntimeError(
                         f"Gemini вернул {len(result.embeddings)} эмбеддингов "
@@ -248,7 +181,7 @@ class GeminiAdapter:
     async def generate_answer_stream(
         self, prompt: str, context: str, mode: AnswerMode = DEFAULT_MODE
     ) -> AsyncGenerator[str, None]:
-        # Режим приходит из UI. Незнакомое значение не роняет запрос — берём режим по умолчанию.
+        # Незнакомый режим из UI не роняет запрос.
         system_instruction, temperature = _MODES.get(mode, _MODES[DEFAULT_MODE])
 
         full_prompt = (
@@ -257,7 +190,6 @@ class GeminiAdapter:
             f"Вопрос пользователя: {prompt}\n"
         )
 
-        # generate_content_stream в async-клиенте — корутина, возвращающая асинхронный итератор.
         stream = await self.client.aio.models.generate_content_stream(
             model=self.chat_model,
             contents=full_prompt,
@@ -271,19 +203,15 @@ class GeminiAdapter:
                 yield chunk.text
 
     async def rewrite_query(self, user_question: str, history: list = None) -> str:
-        """
-        Умный пре-процессинг: исправляем опечатки и раскрываем контекст.
-        """
+        """Переписывает вопрос для поиска: опечатки и местоимения по истории диалога."""
         history_text = ""
         if history:
             history_text = "Контекст диалога:\n"
-            for msg in history[-3:]: # Берем последние 3 сообщения для экономии
+            for msg in history[-3:]:
                 history_text += f"{msg['role']}: {msg['content']}\n"
 
-        # ВАЖНО: промт не должен обрываться на приманке вида "Исправленный запрос:".
-        # Gemini 3 — thinking-модель, и на такой «допиши за меня» она детерминированно
-        # возвращает finish_reason=MALFORMED_RESPONSE без текстовых частей.
-        # Поэтому задача ставится явно, а формат ответа описан словами.
+        # Не обрывать промт на «Исправленный запрос:» — Gemini 3 (thinking-модель)
+        # на такое отвечает MALFORMED_RESPONSE без текста.
         prompt = (
             "Перепиши поисковый запрос пользователя для векторной базы знаний.\n"
             "1. Исправь опечатки.\n"
@@ -294,16 +222,13 @@ class GeminiAdapter:
             f"Запрос: {user_question}"
         )
 
-        # Для rewrite (извлечения фактов) используем нулевую температуру! Нам тут креатив не нужен.
-        # Rewrite — вспомогательный шаг: если он упал (пустой ответ, фильтр, квота),
-        # ищем по исходному вопросу, а не роняем весь запрос пользователя.
+        # Вспомогательный шаг: при любом сбое ищем по исходному вопросу.
         try:
             response = await self.client.aio.models.generate_content(
                 model=self.chat_model,
                 contents=prompt,
                 config=types.GenerateContentConfig(temperature=0.0),
             )
-            # В новом SDK .text возвращает None, если модель не отдала текстовых частей.
             corrected_query = (response.text or "").strip()
         except Exception as e:
             print(f"⚠️  Query Rewriter недоступен ({type(e).__name__}), ищу по оригиналу.")

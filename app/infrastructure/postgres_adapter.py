@@ -6,74 +6,57 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Dict, Any
 from app.domain.ports import IVectorStore
 
-# Слово = буквы/цифры/дефис. Дефисные имена («Аль-Муалим») кладём и целиком, и по частям.
 _WORD_RE = re.compile(r"[^\W_]+(?:-[^\W_]+)*", re.UNICODE)
 
-# Латиница в русском лоре — почти всегда название: Mixvel, Sirena, FastAPI.
 _LATIN_RE = re.compile(r"[A-Za-z]")
 
-# После этих символов заглавная буква — просто начало предложения.
-# «>» — разделитель в префиксе чанка «Статья > Биография > Юность»: без него
-# слова заголовков («биография», «история», «описание») считались именами и
-# становились мишенями для исправления опечаток.
+# После них заглавная буква — начало предложения, а не имя. «>» — разделитель
+# в префиксе «Статья > Биография»: иначе слова заголовков считались бы именами.
 _SENTENCE_END = ".!?…:;>\n"
 
-# Короткие слова не берём: на них триграммы дают слишком много ложных совпадений.
+# На коротких словах триграммы дают много ложных совпадений; длинные — склейки.
 _MIN_TERM_LEN = 4
-# Длиннее — почти всегда склейка или имя файла («acezioauditorethethirdchapter»),
-# а не имя, которое человек станет набирать.
 _MAX_TERM_LEN = 30
 
-# Порог триграммного сходства. По замерам: опечатки дают 0.38-0.70,
-# разные имена — 0.00. 0.35 разделяет их с запасом.
+# Опечатки дают сходство 0.38–0.70, разные имена — около 0.
 _SIMILARITY_THRESHOLD = 0.35
 
 
 def normalize_word(word: str) -> str:
-    """Единая нормализация для словаря и для запроса: нижний регистр и ё -> е."""
+    """Одна нормализация для словаря и запроса: нижний регистр, ё -> е."""
     return word.lower().replace("ё", "е")
 
 
 def _is_proper(raw: str, text: str, start: int) -> bool:
     """
-    Похоже ли слово на имя собственное или технический термин.
-
-    Латиница — всегда да: в лоре это названия («Mixvel», «error_source»).
-    Кириллица — только «Альтаир», но не «АРХИТЕКТУРА» (заголовок раздела)
-    и не «Его» в начале предложения: заглавная там ничего не означает.
+    Имя собственное? Латиница — всегда да. Кириллица — с заглавной, не капсом
+    и не в начале предложения.
     """
     if _LATIN_RE.search(raw):
         return True
     if not raw[:1].isupper() or raw.isupper():
         return False
 
-    # Начало предложения: заглавная буква вынужденная, о слове не говорит ничего
     before = text[:start]
     stripped = before.rstrip()
     if not stripped:
         return False
-    # Перенос строки — тоже граница: к тексту чанка приклеен заголовок раздела.
-    # Проверяем ДО rstrip(), иначе он этот перенос и съест.
+    # Перенос — тоже граница; проверять до rstrip(), иначе он его съест.
     if "\n" in before[len(stripped):]:
         return False
-    # «2.1 Технологический стек» — цифра перед словом означает нумерацию раздела,
-    # а не предложение, в середине которого стоит имя.
+    # Цифра перед словом — нумерация («2.1 Технологический стек»).
     return not (stripped[-1] in _SENTENCE_END or stripped[-1].isdigit())
 
 
 def extract_terms(chunk_text: str) -> Dict[str, bool]:
     """
-    Слова из текста лора для словаря опечаток: {слово: имя_собственное}.
-
-    Флаг считается по всем вхождениям через ИЛИ — «Альтаир» в начале
-    предложения выглядит обычным словом, но хотя бы одно вхождение
-    в середине выдаёт в нём имя.
+    {слово: имя_собственное} для словаря опечаток. Флаг — ИЛИ по всем
+    вхождениям: одно вхождение в середине фразы выдаёт имя.
     """
     terms: Dict[str, bool] = {}
 
     def add(word: str, proper: bool) -> None:
-        # Слова с цифрами — размеры картинок и склейки строк таблиц («250px»,
-        # «5ятаган35511300f»), в роли исправления опечатки они не нужны.
+        # Слова с цифрами — «250px», склейки таблиц; именами не бывают.
         if not _MIN_TERM_LEN <= len(word) <= _MAX_TERM_LEN or any(ch.isdigit() for ch in word):
             return
         terms[word] = terms.get(word, False) or proper
@@ -85,11 +68,10 @@ def extract_terms(chunk_text: str) -> Dict[str, bool]:
             continue
         proper = _is_proper(raw, chunk_text, match.start())
         add(word, proper)
-        # «аль-муалим» кладём ещё и как «аль» + «муалим»
+        # «аль-муалим» — ещё и как «аль» + «муалим»
         if "-" in word:
             raw_parts = raw.split("-")
             for i, part in enumerate(word.split("-")):
-                # Регистр берём у своей же половинки: в «Аль-Муалим» имя обе
                 part_raw = raw_parts[i] if i < len(raw_parts) else raw
                 add(part, proper and part_raw[:1].isupper())
 
@@ -98,14 +80,11 @@ def extract_terms(chunk_text: str) -> Dict[str, bool]:
 class PostgresVectorStore(IVectorStore):
 
     def __init__(self, session: AsyncSession):
-        # Адаптер не создает подключение к БД сам!
-        # Он получает уже готовую асинхронную сессию извне (Dependency Injection).
         self.session = session
 
     async def save_chunks(self, chunks_data: List[Dict[str, Any]]) -> None:
-        # article_title/source_url — обязательные ключи, без .get(): лучше упасть
-        # явным KeyError на первом чанке, чем тихо словить NOT NULL violation
-        # в БД через сотни статей.
+        # Обязательные ключи без .get(): KeyError на первом чанке лучше NOT NULL
+        # violation через сотни статей.
         orm_chinks = [
             ArticleChunk(
                 article_id=chunk["article_id"],
@@ -131,11 +110,9 @@ class PostgresVectorStore(IVectorStore):
         rows = {}
         for chunk in chunks_data:
             for term, is_proper in extract_terms(chunk["chunk_text"]).items():
-                # ключ — то же, что и в UniqueConstraint
                 key = (chunk["article_id"], term)
                 row = rows.get(key)
                 if row:
-                    # Слово из соседнего чанка той же статьи: имя — если хоть где-то имя
                     row["is_proper"] = row["is_proper"] or is_proper
                     continue
                 rows[key] = {
@@ -148,9 +125,7 @@ class PostgresVectorStore(IVectorStore):
         if not rows:
             return
 
-        # Дубль по (article_id, term) не вставляем заново, но флаг имени поднимаем:
-        # статью могли грузить частями, и «Альтаир» в середине предложения
-        # мог встретиться только во второй порции.
+        # Дубль не вставляем, но флаг имени поднимаем: статью могли грузить частями.
         stmt = pg_insert(LoreTerm).values(list(rows.values()))
         stmt = stmt.on_conflict_do_update(
             constraint="uq_lore_terms_article_term",
@@ -160,13 +135,8 @@ class PostgresVectorStore(IVectorStore):
 
     async def search_similar(self, query_vector: List[float], universe: str, limit: int = 5) -> List[Dict[str, Any]]:
         """
-        Top-k ближайших чанков вселенной по косинусному расстоянию.
-
-        Кроме текста отдаёт article_title/section_path/chunk_type и distance —
-        ChatUseCase читает отсюда только chunk_text, остальное нужно eval-у
-        (сопоставить найденное с эталоном по названию статьи) и будущему
-        порогу релевантности. distance — cosine distance: 0 — идентично,
-        меньше — ближе.
+        Top-k чанков вселенной по косинусному расстоянию (0 — идентично).
+        Метаданные и distance нужны eval и будущему порогу релевантности.
         """
         distance = ArticleChunk.embedding.cosine_distance(query_vector).label("distance")
         stmt = (
@@ -193,11 +163,8 @@ class PostgresVectorStore(IVectorStore):
 
     async def correct_typos(self, query: str, universe: str) -> str:
         """
-        Чиним опечатки в именах по словарю лора — локально, без вызова LLM.
-        «Альтарир» -> «Альтаир». Регистр и пунктуация нормализуются попутно.
-
-        Слово, которое в лоре есть, не трогаем никогда: правим только незнакомые.
-        Если похожего слова выше порога нет — оставляем как было.
+        «Альтарир» -> «Альтаир» по словарю лора, без LLM. Знакомые лору слова
+        не трогаются; незнакомое без похожего имени выше порога — тоже.
         """
         candidates = {
             normalize_word(m.group(0))
@@ -207,10 +174,8 @@ class PostgresVectorStore(IVectorStore):
         if not candidates:
             return query
 
-        # Какие слова запроса уже знакомы лору — их не трогаем.
-        # Сравниваем по ОСНОВЕ, а не буквально: в словаре лежит «обработки»,
-        # в вопросе «обработкой» — это одно слово, а не опечатка. Триграммы так
-        # не умеют: у падежей сходство (0.62) выше, чем у настоящей опечатки (0.55).
+        # Знакомость — по ОСНОВЕ: «обработкой» и «обработки» — не опечатка.
+        # Выражение совпадает с индексом ix_lore_terms_universe_stem символ в символ.
         known = set(
             (await self.session.execute(
                 text("""
@@ -229,18 +194,9 @@ class PostgresVectorStore(IVectorStore):
 
         replacements = {}
         for word in candidates - known:
-            # ORDER BY <-> — это KNN по GiST-индексу; similarity() задаёт порог явно,
-            # чтобы не зависеть от сессионной настройки pg_trgm.similarity_threshold.
-            #
-            # «%» — префильтр, который тоже идёт через GiST-индекс. Без него, если
-            # похожих слов нет вовсе, KNN перебирал весь индекс, отбрасывая строки
-            # фильтром similarity() (~720 мс на полном корпусе, 565 тыс. строк).
-            # Порог «%» по умолчанию 0.3 < 0.35 — он только надмножество, точный
-            # порог по-прежнему задаёт similarity().
-            #
-            # is_proper — вторая защита: чинить имеет смысл только имена, ради
-            # которых словарь и заводился. Без неё любой глагол из лора становится
-            # мишенью, и «происходит» уезжает в «проходит».
+            # «%» — индексный префильтр (порог 0.3 < 0.35, т.е. надмножество): без
+            # него слово без похожих гнало KNN по всему индексу. Точный порог —
+            # similarity(). is_proper: чиним только имена, не «происходит» -> «проходит».
             best = (await self.session.execute(
                 select(LoreTerm.term)
                 .where(
@@ -267,10 +223,7 @@ class PostgresVectorStore(IVectorStore):
         return corrected
 
     async def list_universes(self) -> List[Dict[str, Any]]:
-        """
-        Отдаём только те вселенные, по которым реально есть чанки,
-        вместе с количеством чанков и статей.
-        """
+        """Вселенные, по которым есть чанки, с числом чанков и статей."""
         stmt = (
             select(
                 ArticleChunk.universe,
